@@ -1,59 +1,57 @@
+from itertools import combinations
+
 import numpy as np
 import pandas as pd
 from sklearn.model_selection import StratifiedKFold
 
-from src.dataset import load_prompts, split_prompts
-from src.model import last_prompt_token_activations, load_gemma, refusal_directions
 from settings import (
     CONSTRUCTION_ACTIVATIONS_PATH,
+    CONSTRUCTION_CATEGORIES_PER_LABEL,
     DIRECTIONS_PATH,
-    HELD_OUT_UNSAFE_CATEGORIES,
     MODEL_ID,
     MODEL_REVISION,
     RANDOM_SEED,
     RUN_DIR,
     SPLIT_PATH,
+    STABILITY_FOLDS,
 )
+from src.dataset import load_prompts, split_prompts
+from src.model import last_prompt_token_activations, load_gemma, refusal_directions
 
-
-PROMPTS_PER_LABEL = 50
-KFOLD_SPLITS = 5
 
 FIT_REPORT_PATH = RUN_DIR / "direction_fit_report.csv"
+SPLIT_STYLE = "category_disjoint"
 
 
 def main():
     RUN_DIR.mkdir(parents=True, exist_ok=True)
 
-    # The split is written once and reused by the output script.
+    # The split file is the contract between fitting, generation, and manual labeling.
     split_rows = split_prompts(load_prompts())
     split_rows.to_csv(SPLIT_PATH, index=False)
 
     construction_rows = split_rows.loc[split_rows["split"] == "construction"].reset_index(drop=True)
+    labels = construction_rows["label"].to_numpy()
     activations = load_or_make_activations(construction_rows)
 
-    # The direction is fitted from a fixed, category-balanced 50 safe + 50 unsafe prompts.
-    fit_rows = choose_fit_rows(construction_rows)
-    fit_labels = fit_rows["label"].to_numpy()
-    fit_activations = activations[fit_rows.index.to_numpy()]
-
-    # K-fold is reported as uncertainty/stability evidence; it is not used as a pass/fail rule.
-    report = kfold_report(fit_activations, fit_labels)
+    # The report uses this as a stability check, not as model selection.
+    report = stability_report(activations, labels, construction_rows["category"].to_numpy())
     pd.DataFrame([report]).to_csv(FIT_REPORT_PATH, index=False)
 
-    # The final edit uses the full fixed 100-prompt fit set.
-    directions = refusal_directions(fit_activations, fit_labels)
+    # The final edit is fitted once, using every construction prompt.
+    directions = refusal_directions(activations, labels)
     np.savez_compressed(
         DIRECTIONS_PATH,
         directions=directions,
+        split_style=np.array([SPLIT_STYLE]),
         model_id=np.array([MODEL_ID]),
         model_revision=np.array([MODEL_REVISION]),
-        fit_prompt_ids=fit_rows["id"].to_numpy(),
-        fit_prompts_per_label=np.array([PROMPTS_PER_LABEL]),
-        kfold_splits=np.array([KFOLD_SPLITS]),
-        median_layer_cosine=np.array([report["median_layer_cosine"]]),
-        p10_layer_cosine=np.array([report["p10_layer_cosine"]]),
-        held_out_unsafe_categories=np.array(HELD_OUT_UNSAFE_CATEGORIES),
+        construction_categories=np.array(sorted(construction_rows["category"].unique())),
+        construction_prompt_ids=construction_rows["id"].to_numpy(),
+        construction_categories_per_label=np.array([CONSTRUCTION_CATEGORIES_PER_LABEL]),
+        stability_folds=np.array([STABILITY_FOLDS]),
+        median_pairwise_layer_cosine=np.array([report["median_pairwise_layer_cosine"]]),
+        p10_pairwise_layer_cosine=np.array([report["p10_pairwise_layer_cosine"]]),
     )
 
     print(f"wrote split: {SPLIT_PATH}", flush=True)
@@ -61,44 +59,18 @@ def main():
     print(f"wrote directions: {DIRECTIONS_PATH}", flush=True)
 
 
-def choose_fit_rows(rows):
-    fit_rows = [
-        category_balanced_sample(rows, "safe", PROMPTS_PER_LABEL),
-        category_balanced_sample(rows, "unsafe", PROMPTS_PER_LABEL),
-    ]
-    return pd.concat(fit_rows).sample(frac=1, random_state=RANDOM_SEED)
-
-
-def category_balanced_sample(rows, label, total):
-    rows = rows.loc[rows["label"] == label]
-    categories = sorted(rows["category"].unique())
-    base = total // len(categories)
-    extra = total % len(categories)
-
-    # Spread the fixed sample across categories instead of letting one domain dominate.
-    samples = []
-    for index, category in enumerate(categories):
-        category_rows = rows.loc[rows["category"] == category]
-        take = base + int(index < extra)
-        samples.append(category_rows.sample(n=take, random_state=RANDOM_SEED + index))
-
-    return pd.concat(samples)
-
-
 def load_or_make_activations(rows):
     prompts = rows["prompt"].tolist()
     labels = rows["label"].tolist()
+    categories = rows["category"].tolist()
 
-    # Activation collection is the slow part, so reuse it only for the exact same split.
     if CONSTRUCTION_ACTIVATIONS_PATH.exists():
-        cached = np.load(CONSTRUCTION_ACTIVATIONS_PATH, allow_pickle=False)
-        same_prompts = cached["prompts"].astype(str).tolist() == prompts
-        same_labels = cached["labels"].astype(str).tolist() == labels
-        if same_prompts and same_labels:
-            print(f"using cached activations: {CONSTRUCTION_ACTIVATIONS_PATH}", flush=True)
-            return cached["activations"]
-
-        raise ValueError("cached activations do not match the current split")
+        with np.load(CONSTRUCTION_ACTIVATIONS_PATH, allow_pickle=False) as cached:
+            # Cached activations are valid only for the exact same construction rows.
+            if cache_matches(cached, prompts, labels, categories):
+                print(f"using cached activations: {CONSTRUCTION_ACTIVATIONS_PATH}", flush=True)
+                return cached["activations"]
+        print("cached activations are stale; rebuilding them for the current split", flush=True)
 
     tokenizer, model, device = load_gemma()
     activations = []
@@ -112,37 +84,50 @@ def load_or_make_activations(rows):
         activations=activations,
         prompts=np.array(prompts),
         labels=np.array(labels),
+        categories=np.array(categories),
     )
     return activations
 
 
-def kfold_report(activations, labels):
+def cache_matches(cached, prompts, labels, categories):
+    expected = {"activations", "prompts", "labels", "categories"}
+    if not expected.issubset(cached.files):
+        return False
+
+    return (
+        cached["prompts"].astype(str).tolist() == prompts
+        and cached["labels"].astype(str).tolist() == labels
+        and cached["categories"].astype(str).tolist() == categories
+    )
+
+
+def stability_report(activations, labels, categories):
+    splitter = StratifiedKFold(n_splits=STABILITY_FOLDS, shuffle=True, random_state=RANDOM_SEED)
     fold_directions = []
-    splitter = StratifiedKFold(n_splits=KFOLD_SPLITS, shuffle=True, random_state=RANDOM_SEED)
+    fold_sizes = []
 
-    # Refit the direction while leaving out each fold once.
-    for train_positions, _ in splitter.split(activations, labels):
-        fold_directions.append(refusal_directions(activations[train_positions], labels[train_positions]))
+    # Each fold has prompts from every construction category, but no prompt overlap.
+    for _, fold_positions in splitter.split(activations, categories):
+        fold_directions.append(refusal_directions(activations[fold_positions], labels[fold_positions]))
+        fold_sizes.append(len(fold_positions))
 
-    mean_direction = np.mean(np.stack(fold_directions), axis=0)
-    mean_direction = mean_direction / np.linalg.norm(mean_direction, axis=1, keepdims=True)
-
-    # Cosine close to 1 means the learned layer directions barely change across folds.
-    layer_cosines = np.concatenate([
-        np.sum(directions * mean_direction, axis=1)
-        for directions in fold_directions
-    ])
-
-    median_cosine = float(np.median(layer_cosines))
-    p10_cosine = float(np.quantile(layer_cosines, 0.10))
+    # Five fold directions give ten pairwise comparisons per layer.
+    pairwise_layer_cosines = []
+    for first, second in combinations(fold_directions, 2):
+        pairwise_layer_cosines.append(np.sum(first * second, axis=1))
+    pairwise_layer_cosines = np.concatenate(pairwise_layer_cosines)
 
     return {
-        "fit_prompts_total": len(labels),
-        "fit_prompts_per_label": PROMPTS_PER_LABEL,
-        "kfold_splits": KFOLD_SPLITS,
-        "median_layer_cosine": median_cosine,
-        "p10_layer_cosine": p10_cosine,
-        "held_out_unsafe_categories": " | ".join(HELD_OUT_UNSAFE_CATEGORIES),
+        "split_style": SPLIT_STYLE,
+        "construction_prompts": len(labels),
+        "construction_safe_prompts": int(np.sum(labels == "safe")),
+        "construction_unsafe_prompts": int(np.sum(labels == "unsafe")),
+        "construction_categories_per_label": CONSTRUCTION_CATEGORIES_PER_LABEL,
+        "stability_folds": STABILITY_FOLDS,
+        "stability_fold_prompts": " | ".join(str(size) for size in fold_sizes),
+        "pairwise_comparisons": len(fold_directions) * (len(fold_directions) - 1) // 2,
+        "median_pairwise_layer_cosine": float(np.median(pairwise_layer_cosines)),
+        "p10_pairwise_layer_cosine": float(np.quantile(pairwise_layer_cosines, 0.10)),
     }
 
 

@@ -6,8 +6,13 @@ from settings import MODEL_ID, MODEL_REVISION
 
 
 def load_gemma():
-    # Use the fastest local backend available on the machine running the experiment.
-    device = "mps" if torch.backends.mps.is_available() else "cuda" if torch.cuda.is_available() else "cpu"
+    if torch.backends.mps.is_available():
+        device = "mps"
+    elif torch.cuda.is_available():
+        device = "cuda"
+    else:
+        device = "cpu"
+
     dtype = torch.float32 if device == "cpu" else torch.float16
 
     tokenizer = AutoTokenizer.from_pretrained(MODEL_ID, revision=MODEL_REVISION)
@@ -22,9 +27,9 @@ def load_gemma():
 
 
 def chat_tokens(tokenizer, prompt, device):
-    # Gemma-instruct expects the user prompt wrapped in its chat template.
     text = prompt
     if tokenizer.chat_template:
+        # Gemma-instruct expects the user prompt wrapped in its chat format.
         text = tokenizer.apply_chat_template(
             [{"role": "user", "content": prompt}],
             tokenize=False,
@@ -67,6 +72,8 @@ def generate(model, tokenizer, prompt, device, max_new_tokens):
 
 def refusal_directions(activations, labels):
     labels = np.asarray(labels, dtype=str)
+    if set(labels) != {"safe", "unsafe"}:
+        raise ValueError("refusal directions need both safe and unsafe labels")
 
     # Each mean has shape [layer, hidden_dim].
     safe_mean = activations[labels == "safe"].mean(axis=0)
@@ -75,7 +82,7 @@ def refusal_directions(activations, labels):
     # Unsafe minus safe gives one candidate refusal direction per layer.
     direction = unsafe_mean - safe_mean
 
-    # Biprojection: remove the part of that direction aligned with normal safe prompts.
+    # Extra Gemma recipe step: orthogonalize the direction against the safe mean.
     safe_axis = safe_mean / np.linalg.norm(safe_mean, axis=1, keepdims=True)
     direction = direction - np.sum(direction * safe_axis, axis=1, keepdims=True) * safe_axis
 
@@ -84,11 +91,18 @@ def refusal_directions(activations, labels):
 
 
 def edit_model(model, directions):
+    layers = model.model.language_model.layers
+    if len(directions) != len(layers):
+        raise ValueError("number of directions must match number of language layers")
+
     with torch.no_grad():
-        for layer, direction in zip(model.model.language_model.layers, directions):
+        for layer, direction in zip(layers, directions):
+            attention_output = layer.self_attn.o_proj
+            mlp_output = layer.mlp.down_proj
+
             # Edit both main projections that write back into the residual stream.
-            layer.self_attn.o_proj.weight.copy_(remove_direction(layer.self_attn.o_proj.weight, direction))
-            layer.mlp.down_proj.weight.copy_(remove_direction(layer.mlp.down_proj.weight, direction))
+            attention_output.weight.copy_(remove_direction(attention_output.weight, direction))
+            mlp_output.weight.copy_(remove_direction(mlp_output.weight, direction))
 
 
 def remove_direction(weight, direction):
@@ -105,5 +119,6 @@ def remove_direction(weight, direction):
     new_norms = torch.linalg.vector_norm(edited, dim=0, keepdim=True)
 
     # Remove the direction but keep each weight column at its original norm.
-    scale = torch.where(old_norms == 0, torch.ones_like(old_norms), old_norms / new_norms)
+    degenerate = (old_norms == 0) | (new_norms == 0)
+    scale = torch.where(degenerate, torch.ones_like(old_norms), old_norms / new_norms)
     return (edited * scale).to(dtype=weight.dtype)

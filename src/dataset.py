@@ -1,23 +1,19 @@
-import random
-
 import pandas as pd
+from sklearn.model_selection import train_test_split
 
-from settings import (
-    CONSTRUCTION_PER_CATEGORY,
-    DATASET_PATH,
-    HELD_OUT_UNSAFE_CATEGORIES,
-    RANDOM_SEED,
-)
+from settings import CONSTRUCTION_CATEGORIES_PER_LABEL, DATASET_PATH, RANDOM_SEED
 
 
 def load_prompts():
     prompts = pd.read_csv(DATASET_PATH, encoding="utf-8-sig")
     required = {"prompt", "label", "category"}
-    if required - set(prompts.columns):
+    missing = required - set(prompts.columns)
+    if missing:
         raise ValueError("dataset must have columns: prompt,label,category")
 
-    # Keep a stable id so generated outputs can be matched back to the same prompt.
     prompts = prompts[["prompt", "label", "category"]].copy()
+
+    # Keep one stable id per prompt so later output CSVs can be merged exactly.
     prompts.insert(0, "id", range(len(prompts)))
 
     for column in ["prompt", "label", "category"]:
@@ -27,51 +23,50 @@ def load_prompts():
     if labels != {"safe", "unsafe"}:
         raise ValueError("dataset labels must be exactly: safe, unsafe")
 
-    unsafe_categories = set(prompts.loc[prompts["label"] == "unsafe", "category"])
-    missing = set(HELD_OUT_UNSAFE_CATEGORIES) - unsafe_categories
-    if missing:
-        raise ValueError(f"held-out unsafe categories missing from dataset: {sorted(missing)}")
+    mixed = prompts.groupby("category")["label"].nunique()
+    mixed = mixed[mixed > 1].index.tolist()
+    if mixed:
+        raise ValueError(f"categories must not mix labels: {mixed}")
 
     return prompts
 
 
 def split_prompts(prompts):
-    rng = random.Random(RANDOM_SEED)
-    pieces = []
+    construction_categories = choose_construction_categories(prompts)
 
-    # Split inside each category so construction and test keep the same domain balance.
-    for category, rows in prompts.groupby("category", sort=True):
-        labels = rows["label"].unique()
-        if len(labels) != 1:
-            raise ValueError(f"category has mixed labels: {category}")
+    split = prompts.copy()
+    split["split"] = "test"
+    split["test_group"] = split["label"]
 
-        # Use Python's seeded shuffle so the split stays identical to the activation cache.
-        shuffled_index = list(rows.index)
-        rng.shuffle(shuffled_index)
-        rows = rows.loc[shuffled_index]
-        label = labels[0]
+    # A prompt is either used to build the edit or to evaluate it, never both.
+    construction = split["category"].isin(construction_categories)
+    split.loc[construction, "split"] = "construction"
+    split.loc[construction, "test_group"] = "construction"
 
-        # These domains are held out completely to test cross-category generalization.
-        if label == "unsafe" and category in HELD_OUT_UNSAFE_CATEGORIES:
-            pieces.append(rows.assign(split="test", test_group="heldout_unsafe"))
-            continue
+    return split.sort_values("id").reset_index(drop=True)
 
-        if len(rows) <= CONSTRUCTION_PER_CATEGORY:
-            raise ValueError(f"not enough prompts in category: {category}")
 
-        # Non-held-out categories give a small construction slice; the rest is test data.
-        test_group = "safe" if label == "safe" else "seen_unsafe"
-        pieces.append(rows.head(CONSTRUCTION_PER_CATEGORY).assign(
-            split="construction",
-            test_group="construction",
-        ))
-        pieces.append(rows.iloc[CONSTRUCTION_PER_CATEGORY:].assign(
-            split="test",
-            test_group=test_group,
-        ))
-
-    return (
-        pd.concat(pieces, ignore_index=True)
-        .sort_values("id")
+def choose_construction_categories(prompts):
+    # The split happens at domain level: one row per category.
+    categories = (
+        prompts[["category", "label"]]
+        .drop_duplicates()
+        .sort_values(["label", "category"])
         .reset_index(drop=True)
     )
+    construction_count = 2 * CONSTRUCTION_CATEGORIES_PER_LABEL
+
+    # Split categories, not prompts. This is the no-leakage part of the design.
+    construction, _ = train_test_split(
+        categories,
+        train_size=construction_count,
+        stratify=categories["label"],
+        random_state=RANDOM_SEED,
+    )
+
+    counts = construction["label"].value_counts().to_dict()
+    expected = {"safe": CONSTRUCTION_CATEGORIES_PER_LABEL, "unsafe": CONSTRUCTION_CATEGORIES_PER_LABEL}
+    if counts != expected:
+        raise ValueError(f"construction category split is not balanced: {counts}")
+
+    return set(construction["category"])
