@@ -1,0 +1,44 @@
+.DS_Store
+Thumbs.db
+
+# Python/runtime state.
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv*/
+venv/
+env/
+.env
+.env.*
+!.env.example
+
+# Local/private experiment material.
+data/
+project/data/
+project/experiments/teest/
+project/experiments/arditi_minimal/
+project/experiments/*/artifacts/
+
+# Course/reference material and generated binaries.
+assigment/
+general reading/
+project/materials/
+project/resources/
+course_inventory_and_deadlines.md
+project/*.md
+*.npz
+*.npy
+*.pt
+*.pth
+*.safetensors
+*.bin
+*.gguf
+*.onnx
+*.pdf
+
+# Logs and temporary files.
+*.log
+*.tmp
+*.temp
