@@ -16,6 +16,10 @@ env/
 
 # Local/private experiment material.
 data/
+ablation_runs/
+ablation/artifacts/
+!ablation/data/
+!ablation/data/safety_prompts_labeled.csv
 project/data/
 project/experiments/teest/
 project/experiments/arditi_minimal/
