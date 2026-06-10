@@ -1,9 +1,9 @@
 from pathlib import Path
 
 
-ROOT = Path(__file__).resolve().parents[1]
-DATASET_PATH = ROOT / "ablation/data/safety_prompts_labeled.csv"
-RUN_DIR = ROOT / "ablation/artifacts"
+ROOT = Path(__file__).resolve().parent
+DATASET_PATH = ROOT / "data/safety_prompts_labeled.csv"
+RUN_DIR = ROOT / "artifacts"
 
 # Pinning the exact model revision makes the experiment reproducible.
 MODEL_ID = "google/gemma-4-E4B-it"

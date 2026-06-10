@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 from tqdm import tqdm
 
-from model import edit_model, generate, load_gemma
+from src.model import edit_model, generate, load_gemma
 from settings import (
     DIRECTIONS_PATH,
     RANDOM_SEED,

@@ -15,23 +15,16 @@ env/
 !.env.example
 
 # Local/private experiment material.
-data/
+data/*
+!data/safety_prompts_labeled.csv
+artifacts/
 ablation_runs/
-ablation/artifacts/
-!ablation/data/
-!ablation/data/safety_prompts_labeled.csv
-project/data/
-project/experiments/teest/
-project/experiments/arditi_minimal/
-project/experiments/*/artifacts/
+project/
 
 # Course/reference material and generated binaries.
 assigment/
 general reading/
-project/materials/
-project/resources/
 course_inventory_and_deadlines.md
-project/*.md
 *.npz
 *.npy
 *.pt

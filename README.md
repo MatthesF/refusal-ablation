@@ -1,6 +1,6 @@
 # Ablation Experiment
 
-This folder contains the small Gemma ablation experiment used for the project.
+This repository contains the small Gemma ablation experiment used for the project.
 
 The idea:
 
@@ -14,14 +14,14 @@ The idea:
 Run:
 
 ```bash
-python ablation/fit_direction.py
-python ablation/run_outputs.py
+python -m src.fit_direction
+python -m src.run_outputs
 ```
 
 Input data must be here:
 
 ```text
-ablation/data/safety_prompts_labeled.csv
+data/safety_prompts_labeled.csv
 ```
 
 Required columns:
@@ -33,12 +33,12 @@ prompt,label,category
 Important outputs:
 
 ```text
-ablation/artifacts/prompt_split.csv
-ablation/artifacts/direction_fit_report.csv
-ablation/artifacts/refusal_directions.npz
-ablation/artifacts/baseline_outputs.csv
-ablation/artifacts/edited_outputs.csv
-ablation/artifacts/evaluation_outputs.csv
+artifacts/prompt_split.csv
+artifacts/direction_fit_report.csv
+artifacts/refusal_directions.npz
+artifacts/baseline_outputs.csv
+artifacts/edited_outputs.csv
+artifacts/evaluation_outputs.csv
 ```
 
 `refusal_directions.npz` also stores the model revision, fit prompt ids, K-fold
@@ -73,9 +73,9 @@ test groups: 200 safe, 160 seen_unsafe, 100 heldout_unsafe
 File roles:
 
 ```text
-settings.py        fixed paths and experiment choices
-dataset.py         pandas dataset loading and split
-model.py           Gemma loading, activations, generation, weight edit
-fit_direction.py   split data, report K-fold cosine, fit directions
-run_outputs.py     generate baseline and edited outputs
+settings.py          fixed paths and experiment choices
+src/dataset.py       pandas dataset loading and split
+src/model.py         Gemma loading, activations, generation, weight edit
+src/fit_direction.py split data, report K-fold cosine, fit directions
+src/run_outputs.py   generate baseline and edited outputs
 ```

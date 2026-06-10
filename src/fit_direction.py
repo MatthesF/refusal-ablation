@@ -2,8 +2,8 @@ import numpy as np
 import pandas as pd
 from sklearn.model_selection import StratifiedKFold
 
-from dataset import load_prompts, split_prompts
-from model import last_prompt_token_activations, load_gemma, refusal_directions
+from src.dataset import load_prompts, split_prompts
+from src.model import last_prompt_token_activations, load_gemma, refusal_directions
 from settings import (
     CONSTRUCTION_ACTIVATIONS_PATH,
     DIRECTIONS_PATH,
