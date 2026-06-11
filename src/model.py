@@ -55,8 +55,12 @@ def last_prompt_token_activations(model, tokenizer, prompt, device):
     ]).numpy()
 
 
-def generate(model, tokenizer, prompt, device, max_new_tokens):
+def generate(model, tokenizer, prompt, device):
     tokens = chat_tokens(tokenizer, prompt, device)
+    prompt_length = tokens["input_ids"].shape[1]
+    max_new_tokens = int(model.config.max_position_embeddings) - prompt_length
+    if max_new_tokens <= 0:
+        raise ValueError("prompt is longer than the model context window")
 
     with torch.no_grad():
         output = model.generate(
@@ -66,8 +70,13 @@ def generate(model, tokenizer, prompt, device, max_new_tokens):
             pad_token_id=tokenizer.eos_token_id,
         )
 
-    prompt_length = tokens["input_ids"].shape[1]
-    return tokenizer.decode(output[0, prompt_length:], skip_special_tokens=True).strip()
+    answer_tokens = output[0, prompt_length:]
+    answer = tokenizer.decode(answer_tokens, skip_special_tokens=True).strip()
+
+    token_ids = answer_tokens.tolist()
+    ended_on_eos = tokenizer.eos_token_id in token_ids if tokenizer.eos_token_id is not None else False
+    hit_token_limit = len(answer_tokens) >= max_new_tokens and not ended_on_eos
+    return answer, len(answer_tokens), max_new_tokens, hit_token_limit
 
 
 def refusal_directions(activations, labels):

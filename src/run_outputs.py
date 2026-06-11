@@ -7,7 +7,6 @@ from tqdm import tqdm
 from src.model import edit_model, generate, load_gemma
 from settings import (
     DIRECTIONS_PATH,
-    MAX_NEW_TOKENS,
     RUN_DIR,
     SPLIT_PATH,
 )
@@ -17,7 +16,16 @@ BASELINE_OUTPUTS_PATH = RUN_DIR / "baseline_outputs.csv"
 EDITED_OUTPUTS_PATH = RUN_DIR / "edited_outputs.csv"
 EVALUATION_OUTPUTS_PATH = RUN_DIR / "evaluation_outputs.csv"
 
-OUTPUT_FIELDS = ["run_id", "id", "condition", "max_new_tokens", "word_count", "answer"]
+OUTPUT_FIELDS = [
+    "run_id",
+    "id",
+    "condition",
+    "max_new_tokens",
+    "word_count",
+    "answer_tokens",
+    "hit_token_limit",
+    "answer",
+]
 
 
 def main():
@@ -48,9 +56,9 @@ def load_directions():
 
 
 def output_run_id():
-    # Changing the fitted direction or token limit creates a new output run.
+    # Changing the fitted direction creates a new output run.
     direction_hash = hashlib.sha256(DIRECTIONS_PATH.read_bytes()).hexdigest()[:12]
-    return f"{direction_hash}-tok{MAX_NEW_TOKENS}"
+    return f"{direction_hash}-eos"
 
 
 def evaluation_rows(rows):
@@ -75,13 +83,20 @@ def generate_condition(path, rows, condition, run_id, model, tokenizer, device):
     )
     for row in progress:
         progress.set_postfix(id=row.id)
-        answer = generate(model, tokenizer, row.prompt, device, MAX_NEW_TOKENS)
+        answer, answer_tokens, max_new_tokens, hit_token_limit = generate(
+            model,
+            tokenizer,
+            row.prompt,
+            device,
+        )
         output = pd.DataFrame([{
             "run_id": run_id,
             "id": row.id,
             "condition": condition,
-            "max_new_tokens": MAX_NEW_TOKENS,
+            "max_new_tokens": max_new_tokens,
             "word_count": len(answer.split()),
+            "answer_tokens": answer_tokens,
+            "hit_token_limit": hit_token_limit,
             "answer": answer,
         }], columns=OUTPUT_FIELDS)
         output.to_csv(path, mode="a", header=not path.exists(), index=False)
@@ -104,7 +119,6 @@ def completed_ids(path, condition, run_id):
     outputs = outputs.loc[
         (outputs["condition"] == condition)
         & (outputs["run_id"] == run_id)
-        & (outputs["max_new_tokens"] == MAX_NEW_TOKENS)
     ]
     return set(outputs["id"])
 
@@ -113,17 +127,39 @@ def paired_rows(prompt_rows, run_id):
     # Manual labeling is easiest from one row per prompt with both model answers.
     baseline = current_outputs(BASELINE_OUTPUTS_PATH, "baseline", run_id).rename(columns={
         "word_count": "baseline_word_count",
+        "answer_tokens": "baseline_answer_tokens",
+        "hit_token_limit": "baseline_hit_token_limit",
         "answer": "baseline_answer",
     })
     edited = current_outputs(EDITED_OUTPUTS_PATH, "edited", run_id).rename(columns={
         "word_count": "edited_word_count",
+        "answer_tokens": "edited_answer_tokens",
+        "hit_token_limit": "edited_hit_token_limit",
         "answer": "edited_answer",
     })
 
     paired = (
         prompt_rows
-        .merge(baseline[["id", "baseline_word_count", "baseline_answer"]], on="id")
-        .merge(edited[["id", "edited_word_count", "edited_answer"]], on="id")
+        .merge(
+            baseline[[
+                "id",
+                "baseline_word_count",
+                "baseline_answer_tokens",
+                "baseline_hit_token_limit",
+                "baseline_answer",
+            ]],
+            on="id",
+        )
+        .merge(
+            edited[[
+                "id",
+                "edited_word_count",
+                "edited_answer_tokens",
+                "edited_hit_token_limit",
+                "edited_answer",
+            ]],
+            on="id",
+        )
     )
     if len(paired) != len(prompt_rows):
         raise ValueError("not all test prompts have both baseline and edited outputs")
@@ -142,6 +178,10 @@ def paired_rows(prompt_rows, run_id):
         "edited_manual_label",
         "baseline_word_count",
         "edited_word_count",
+        "baseline_answer_tokens",
+        "edited_answer_tokens",
+        "baseline_hit_token_limit",
+        "edited_hit_token_limit",
         "baseline_answer",
         "edited_answer",
     ]]
@@ -152,7 +192,6 @@ def current_outputs(path, condition, run_id):
     return outputs.loc[
         (outputs["condition"] == condition)
         & (outputs["run_id"] == run_id)
-        & (outputs["max_new_tokens"] == MAX_NEW_TOKENS)
     ]
 
 

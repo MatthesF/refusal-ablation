@@ -13,7 +13,6 @@ RANDOM_SEED = 2445
 # Experiment choices that should match the report.
 CONSTRUCTION_CATEGORIES_PER_LABEL = 8
 STABILITY_FOLDS = 5
-MAX_NEW_TOKENS = 256
 
 # Files shared between fitting and output generation.
 SPLIT_PATH = RUN_DIR / "prompt_split.csv"
