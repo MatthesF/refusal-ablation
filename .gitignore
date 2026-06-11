@@ -16,15 +16,14 @@ env/
 
 # Local/private experiment material.
 data/*
-!data/safety_prompts_labeled.csv
+!data/README.md
+!data/gemma_policy_prompts.csv
 artifacts/
 ablation_runs/
-project/
+project_data/
+ckpts/
 
-# Course/reference material and generated binaries.
-assigment/
-general reading/
-course_inventory_and_deadlines.md
+# Generated binaries and heavyweight model files.
 *.npz
 *.npy
 *.pt

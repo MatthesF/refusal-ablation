@@ -1,32 +1,39 @@
 import pandas as pd
 from sklearn.model_selection import train_test_split
 
-from settings import CONSTRUCTION_CATEGORIES_PER_LABEL, DATASET_PATH, RANDOM_SEED
+from settings import (
+    CONSTRUCTION_POLICY_AREAS,
+    DATASET_PATH,
+    POLICY_AREAS,
+    PROMPTS_PER_LABEL_PER_POLICY_AREA,
+    RANDOM_SEED,
+)
 
 
 def load_prompts():
     prompts = pd.read_csv(DATASET_PATH, encoding="utf-8-sig")
-    required = {"prompt", "label", "category"}
-    missing = required - set(prompts.columns)
-    if missing:
-        raise ValueError("dataset must have columns: prompt,label,category")
+    required_columns = {"prompt", "label", "category"}
+    missing_columns = required_columns - set(prompts.columns)
+    if missing_columns:
+        missing = ", ".join(sorted(missing_columns))
+        raise ValueError(f"dataset is missing required columns: {missing}")
 
-    prompts = prompts[["prompt", "label", "category"]].copy()
+    columns = ["prompt", "label", "category"]
+    if "policy_area" in prompts.columns:
+        columns.append("policy_area")
+    prompts = prompts[columns].copy()
 
     # Keep one stable id per prompt so later output CSVs can be merged exactly.
     prompts.insert(0, "id", range(len(prompts)))
 
-    for column in ["prompt", "label", "category"]:
+    for column in columns:
         prompts[column] = prompts[column].astype(str).str.strip()
 
     labels = set(prompts["label"])
     if labels != {"safe", "unsafe"}:
         raise ValueError("dataset labels must be exactly: safe, unsafe")
 
-    mixed = prompts.groupby("category")["label"].nunique()
-    mixed = mixed[mixed > 1].index.tolist()
-    if mixed:
-        raise ValueError(f"categories must not mix labels: {mixed}")
+    validate_policy_dataset(prompts)
 
     return prompts
 
@@ -47,26 +54,41 @@ def split_prompts(prompts):
 
 
 def choose_construction_categories(prompts):
-    # The split happens at domain level: one row per category.
-    categories = (
-        prompts[["category", "label"]]
-        .drop_duplicates()
-        .sort_values(["label", "category"])
-        .reset_index(drop=True)
-    )
-    construction_count = 2 * CONSTRUCTION_CATEGORIES_PER_LABEL
+    categories = prompts[["category"]].drop_duplicates().sort_values("category")
 
-    # Split categories, not prompts. This is the no-leakage part of the design.
+    # Split policy areas, not prompts. This is the no-leakage part of the design.
     construction, _ = train_test_split(
         categories,
-        train_size=construction_count,
-        stratify=categories["label"],
+        train_size=CONSTRUCTION_POLICY_AREAS,
         random_state=RANDOM_SEED,
     )
-
-    counts = construction["label"].value_counts().to_dict()
-    expected = {"safe": CONSTRUCTION_CATEGORIES_PER_LABEL, "unsafe": CONSTRUCTION_CATEGORIES_PER_LABEL}
-    if counts != expected:
-        raise ValueError(f"construction category split is not balanced: {counts}")
-
     return set(construction["category"])
+
+
+def validate_policy_dataset(prompts):
+    categories = set(prompts["category"])
+    expected_categories = set(POLICY_AREAS)
+    if categories != expected_categories:
+        missing = sorted(expected_categories - categories)
+        extra = sorted(categories - expected_categories)
+        raise ValueError(f"dataset policy areas mismatch; missing={missing}, extra={extra}")
+
+    counts = (
+        prompts.groupby(["category", "label"])
+        .size()
+        .unstack(fill_value=0)
+        .sort_index()
+    )
+    expected_count = PROMPTS_PER_LABEL_PER_POLICY_AREA
+    bad = counts.loc[
+        (counts["safe"] != expected_count)
+        | (counts["unsafe"] != expected_count)
+    ]
+    if not bad.empty:
+        raise ValueError(
+            "each policy area must contain exactly "
+            f"{expected_count} safe and {expected_count} unsafe prompts"
+        )
+
+    if "policy_area" in prompts.columns and prompts["policy_area"].str.len().eq(0).any():
+        raise ValueError("policy_area must be non-empty for every row")

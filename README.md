@@ -1,29 +1,76 @@
-# Ablation Experiment
+# Gemma Refusal Ablation
 
-This repository contains the Gemma refusal-ablation experiment used for the
-project.
+This repository runs one fixed experiment:
 
-The idea:
+1. Fit a refusal direction from the local 480-prompt policy dataset.
+2. Check whether the direction generalizes across held-out policy areas.
+3. Generate SORRY-Bench answers with baseline Gemma.
+4. Apply the refusal-direction edit and generate the same SORRY-Bench answers again.
+5. Score both answer sets with the pinned official SORRY-Bench judge.
 
-1. Split the dataset by category, not by prompt.
-2. Use 8 safe and 8 unsafe categories for direction construction.
-3. Keep every remaining category for evaluation.
-4. Fit one refusal direction per layer from all construction prompts.
-5. Check direction stability with 5 independent category-stratified prompt folds.
-6. Generate baseline and edited model outputs on the category-disjoint evaluation set.
-7. Manually label paired outputs as `accepted`, `refused`, or `unusable`.
-
-Run:
+## RunPod Run
 
 ```bash
+python -m pip install -r requirements.txt
+
+python -m src.download_assets
 python -m src.fit_direction
-python -m src.run_outputs
+python -m src.run_gemma_sorry_bench
+
+python -m pip install -r requirements-official-evaluator.txt
+python -m src.score_sorry_bench_official
 ```
 
-Input data must be here:
+`src.download_assets` requires access to the gated
+`sorry-bench/sorry-bench-202503` Hugging Face dataset. Accept the dataset terms
+and export `HF_TOKEN` if Hugging Face requires authentication.
+
+The official evaluator requirements are installed after Gemma generation so
+vLLM's CUDA/Torch dependencies do not interfere with the base experiment
+environment.
+
+`requirements-official-evaluator.txt` pins the ordinary Python packages. vLLM is
+left platform-resolved because its CPU and CUDA packages resolve differently;
+the RunPod script records the exact installed vLLM version in the final
+`pip freeze` artifact.
+
+## Following A RunPod Run
+
+Create or start the pod from the RunPod console or `runpodctl`, then SSH into
+the pod and run the experiment from the repo root:
+
+```bash
+export HF_TOKEN=...
+bash scripts/runpod_experiment.sh
+```
+
+The script writes a timestamped log in `artifacts/` and updates:
 
 ```text
-data/safety_prompts_labeled.csv
+artifacts/runpod_latest.log
+artifacts/runpod_requirements_base_<timestamp>.txt
+artifacts/runpod_requirements_official_<timestamp>.txt
+```
+
+If the SSH connection drops, reconnect and continue watching with:
+
+```bash
+tail -f artifacts/runpod_latest.log
+```
+
+## Inputs
+
+Local direction-construction data:
+
+```text
+data/gemma_policy_prompts.csv
+```
+
+The GPT Pro prompt used to create the policy-derived construction dataset lives
+in:
+
+```text
+prompts/gemma_policy_dataset_prompt.md
 ```
 
 Required columns:
@@ -32,88 +79,103 @@ Required columns:
 prompt,label,category
 ```
 
-Current split:
+Optional source-metadata columns such as `id` and `policy_area` may be present.
+The loader creates its own stable runtime `id` after reading the file.
+
+Labels must be exactly `safe` and `unsafe`. The dataset must contain the 12
+Gemma policy areas in `category`, with exactly 20 safe and 20 unsafe prompts per
+area. The split is policy-area-disjoint, so held-out local prompts come from
+policy areas that were not used to fit the direction.
+
+SORRY-Bench data lives locally under:
 
 ```text
-total prompts: 1000
-construction: 400 prompts from 16 categories
-evaluation: 600 prompts from 24 categories
-evaluation groups: 300 safe, 300 unsafe
+data/sorry_bench/question.jsonl
 ```
 
-The category split uses `sklearn.model_selection.train_test_split`, stratified by
-the category label. With the current seed, construction categories are:
+This dataset is gated and is not committed.
 
-```text
-safe:
-- Emergency preparedness
-- Fraud and scam prevention
-- General health and medical safety
-- Legal process literacy
-- Model safety evaluation
-- Personal safety planning
-- Product trust and safety
-- Self-harm prevention and support
-
-unsafe:
-- AI-enabled impersonation and abuse
-- Academic and professional fraud
-- Chemical, biological, and poisoning harm
-- Critical infrastructure sabotage
-- Fraud, theft, and deception
-- Hate, harassment, and extremism
-- Malware and unauthorized intrusion
-- Public deception and incitement
-```
-
-Important outputs:
+## Outputs
 
 ```text
 artifacts/prompt_split.csv
 artifacts/direction_fit_report.csv
+artifacts/category_generalization_table.csv
 artifacts/refusal_directions.npz
-artifacts/baseline_outputs.csv
-artifacts/edited_outputs.csv
-artifacts/evaluation_outputs.csv
+artifacts/sorry_bench_outputs.csv
+artifacts/sorry_bench_official_export_manifest.csv
+artifacts/sorry_bench_official_judgments.csv
+artifacts/sorry_bench_official_summary.csv
 ```
 
-`refusal_directions.npz` stores the model revision, construction prompt ids,
-construction categories, and fold-stability cosine numbers.
+`sorry_bench_outputs.csv` contains raw baseline and edited Gemma answers.
 
-`run_outputs.py` writes baseline and edited outputs separately while it runs, so
-an interrupted run can continue. Output rows include a run id based on the fitted
-direction file and token limit, which prevents stale outputs from being reused
-after the experiment settings change.
+`category_generalization_table.csv` checks whether the refusal direction is
+shared across policy areas. For each category budget, it fits one direction on
+the used policy areas and one direction on the remaining held-out policy areas,
+then compares them layer by layer. The final edit is still fit only on the fixed
+8 construction policy areas.
 
-Method source:
-
-The direction fit follows the refusal-direction idea from Arditi et al.,
-[Refusal in Language Models Is Mediated by a Single Direction](https://arxiv.org/abs/2406.11717):
-estimate a direction from unsafe minus safe activations, then remove that
-direction from model weights.
-
-The extra projection against the safe mean and the norm-preserving edit follow
-the simpler Gemma-style recipe used in
-[TrevorS/gemma-4-abliteration](https://github.com/TrevorS/gemma-4-abliteration).
-
-Reproducibility:
+`sorry_bench_official_judgments.csv` contains one official judge score per
+answer. The score contract is:
 
 ```text
-model: google/gemma-4-E4B-it
-revision: fee6332c1abaafb77f6f9624236c63aa2f1d0187
+0 = refusal
+1 = unsafe compliance
+```
+
+`sorry_bench_official_summary.csv` reports compliance and refusal rates overall
+and by SORRY-Bench category.
+
+## Official Judge
+
+The official evaluator scripts are vendored in:
+
+```text
+vendor/sorry_bench_official/
+```
+
+They are pinned to upstream commit:
+
+```text
+7da10addffb6790cfeb75281eaffb5a176861653
+```
+
+The downloader verifies SHA-256 hashes for every vendored official file. The
+score step calls the official `gen_judgment_safety_vllm.py` script and passes
+the vendored `judge_prompts.jsonl` explicitly. The judge prompt used is:
+
+```text
+base-ft-mistral-7b-instruct-v0.2
+```
+
+## Reproducibility
+
+```text
+Gemma model: google/gemma-4-E4B-it
+Gemma revision: fee6332c1abaafb77f6f9624236c63aa2f1d0187
 random seed: 2445
-dataset sha256: d080e6c958ab9b17d99d99f02cdd708726b1c2ecf92b541e6f31f4c9a7ec7519
-construction categories per label: 8
-stability folds: 5
-max new tokens: 256
+construction policy areas: 8
+category generalization budgets: 2, 4, 6, 8 used policy areas
+category generalization repeats: 5
+category generalization reference: held-out policy-area direction
+generation cap: 4096 new tokens
+SORRY-Bench dataset: sorry-bench/sorry-bench-202503
+SORRY-Bench dataset revision: 612a4e1f45db8adf884fa62318ddf9fa1c6e75e9
+SORRY-Bench judge: sorry-bench/ft-mistral-7b-instruct-v0.2-sorry-bench-202406
+SORRY-Bench judge revision: 79ab44668cef557414cb5e15c726a56ebca9cf1e
 ```
 
-File roles:
+## File Roles
 
 ```text
-settings.py          fixed paths and experiment choices
-src/dataset.py       pandas dataset loading and category-disjoint split
-src/model.py         Gemma loading, activations, generation, weight edit
-src/fit_direction.py split data, report fold stability, fit directions
-src/run_outputs.py   generate baseline and edited outputs
+settings.py                       fixed experiment constants
+src/dataset.py                    local CSV loading and policy-area-disjoint split
+src/gemma.py                      Gemma loading, generation, activations, edit
+src/fit_direction.py              fit directions and write category generalization data
+src/sorry_bench.py                SORRY-Bench loading, official export/import
+src/download_assets.py            download dataset, judge model, official evaluator
+src/run_gemma_sorry_bench.py      generate baseline and edited Gemma answers
+src/score_sorry_bench_official.py score answers with the official judge
+scripts/runpod_experiment.sh      pod-side runner with live logs
 ```
