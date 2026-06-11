@@ -18,7 +18,14 @@ env/
 data/*
 !data/README.md
 !data/gemma_policy_prompts.csv
-artifacts/
+artifacts/*
+!artifacts/
+!artifacts/category_generalization_table.csv
+!artifacts/direction_fit_report.csv
+!artifacts/prompt_split.csv
+!artifacts/sorry_bench_outputs.csv
+!artifacts/sorry_bench_official_judgments.csv
+!artifacts/sorry_bench_official_summary.csv
 ablation_runs/
 
 
