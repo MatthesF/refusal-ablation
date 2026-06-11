@@ -29,6 +29,10 @@ The official evaluator requirements are installed after Gemma generation so
 vLLM's CUDA/Torch dependencies do not interfere with the base experiment
 environment.
 
+The RunPod runner installs the CUDA 12.8 PyTorch wheel explicitly because the
+RTX 5090 pod driver reports CUDA 12.8; using a CUDA 13 wheel makes PyTorch unable
+to see the GPU.
+
 `requirements-official-evaluator.txt` pins the ordinary Python packages. vLLM is
 left platform-resolved because its CPU and CUDA packages resolve differently;
 the RunPod script records the exact installed vLLM version in the final
