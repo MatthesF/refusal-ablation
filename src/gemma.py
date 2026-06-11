@@ -20,6 +20,7 @@ def load_gemma():
         GEMMA_MODEL_ID,
         revision=GEMMA_MODEL_REVISION,
     )
+    tokenizer.padding_side = "left"
     model = AutoModelForCausalLM.from_pretrained(
         GEMMA_MODEL_ID,
         revision=GEMMA_MODEL_REVISION,
@@ -30,7 +31,7 @@ def load_gemma():
     return tokenizer, model, device
 
 
-def chat_tokens(tokenizer, prompt, device):
+def chat_text(tokenizer, prompt):
     text = prompt
     if tokenizer.chat_template:
         text = tokenizer.apply_chat_template(
@@ -38,32 +39,56 @@ def chat_tokens(tokenizer, prompt, device):
             tokenize=False,
             add_generation_prompt=True,
         )
-    return tokenizer(text, return_tensors="pt").to(device)
+    return text
+
+
+def chat_tokens(tokenizer, prompt, device):
+    return batch_chat_tokens(tokenizer, [prompt], device)
+
+
+def batch_chat_tokens(tokenizer, prompts, device):
+    if not prompts:
+        raise ValueError("Gemma batch cannot be empty")
+    if tokenizer.pad_token_id is None:
+        raise ValueError("Gemma tokenizer must define pad_token_id for batching")
+
+    texts = [chat_text(tokenizer, prompt) for prompt in prompts]
+    return tokenizer(texts, return_tensors="pt", padding=True).to(device)
 
 
 def last_prompt_token_activations(model, tokenizer, prompt, device):
-    tokens = chat_tokens(tokenizer, prompt, device)
-    prompt_last = int(tokens["attention_mask"].sum().item() - 1)
+    return last_prompt_token_activation_batch(model, tokenizer, [prompt], device)[0]
+
+
+def last_prompt_token_activation_batch(model, tokenizer, prompts, device):
+    tokens = batch_chat_tokens(tokenizer, prompts, device)
+    prompt_last = last_non_padding_indices(tokens["attention_mask"])
 
     with torch.no_grad():
         output = model(**tokens, output_hidden_states=True, use_cache=False)
 
     # Measure the state just before the model starts answering.
+    batch_indices = torch.arange(len(prompts), device=device)
     return torch.stack([
-        hidden[0, prompt_last, :].detach().float().cpu()
+        hidden[batch_indices, prompt_last, :].detach().float().cpu()
         for hidden in output.hidden_states[1:]
-    ]).numpy()
+    ], dim=1).numpy()
 
 
 def generate(model, tokenizer, prompt, device):
+    return generate_batch(model, tokenizer, [prompt], device)[0]
+
+
+def generate_batch(model, tokenizer, prompts, device):
     if tokenizer.eos_token_id is None:
         raise ValueError("Gemma tokenizer must define eos_token_id for deterministic generation")
     if tokenizer.pad_token_id is None:
         raise ValueError("Gemma tokenizer must define pad_token_id for generation")
 
-    tokens = chat_tokens(tokenizer, prompt, device)
-    prompt_length = tokens["input_ids"].shape[1]
-    max_new_tokens = generation_room(model, prompt_length)
+    tokens = batch_chat_tokens(tokenizer, prompts, device)
+    prompt_width = tokens["input_ids"].shape[1]
+    prompt_lengths = tokens["attention_mask"].sum(dim=1).tolist()
+    max_new_tokens = min(generation_room(model, int(length)) for length in prompt_lengths)
 
     with torch.no_grad():
         output = model.generate(
@@ -73,13 +98,38 @@ def generate(model, tokenizer, prompt, device):
             pad_token_id=tokenizer.pad_token_id,
         )
 
-    answer_tokens = output[0, prompt_length:]
-    answer = tokenizer.decode(answer_tokens, skip_special_tokens=True).strip()
+    rows = []
+    generated_tokens = output[:, prompt_width:].detach().cpu()
+    for answer_tokens in generated_tokens:
+        token_ids = trim_generated_token_ids(
+            answer_tokens.tolist(),
+            tokenizer.eos_token_id,
+        )
+        answer = tokenizer.decode(token_ids, skip_special_tokens=True).strip()
+        ended_on_eos = tokenizer.eos_token_id in token_ids
+        hit_token_limit = len(token_ids) >= max_new_tokens and not ended_on_eos
+        rows.append((answer, len(token_ids), max_new_tokens, hit_token_limit))
+    return rows
 
-    token_ids = answer_tokens.tolist()
-    ended_on_eos = tokenizer.eos_token_id in token_ids
-    hit_token_limit = len(answer_tokens) >= max_new_tokens and not ended_on_eos
-    return answer, len(answer_tokens), max_new_tokens, hit_token_limit
+
+def last_non_padding_indices(attention_mask):
+    positions = torch.arange(attention_mask.shape[1], device=attention_mask.device)
+    positions = positions.unsqueeze(0).expand_as(attention_mask)
+    masked_positions = torch.where(
+        attention_mask.bool(),
+        positions,
+        torch.full_like(positions, -1),
+    )
+    indices = masked_positions.max(dim=1).values
+    if torch.any(indices < 0):
+        raise ValueError("cannot run Gemma on an empty prompt batch")
+    return indices
+
+
+def trim_generated_token_ids(token_ids, eos_token_id):
+    if eos_token_id in token_ids:
+        return token_ids[:token_ids.index(eos_token_id) + 1]
+    return token_ids
 
 
 def generation_room(model, prompt_length):

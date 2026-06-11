@@ -170,6 +170,8 @@ category generalization budgets: 2, 4, 6, 8 used policy areas
 category generalization repeats: 5
 category generalization reference: held-out policy-area direction
 generation cap: 4096 new tokens
+activation batch size: 16
+generation batch size: 4
 SORRY-Bench dataset: sorry-bench/sorry-bench-202503
 SORRY-Bench dataset revision: 612a4e1f45db8adf884fa62318ddf9fa1c6e75e9
 SORRY-Bench judge: sorry-bench/ft-mistral-7b-instruct-v0.2-sorry-bench-202406

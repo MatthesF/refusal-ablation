@@ -2,8 +2,13 @@ import numpy as np
 import pandas as pd
 from tqdm import tqdm
 
-from settings import DIRECTIONS_PATH, RUN_DIR, SORRY_BENCH_OUTPUTS_PATH
-from src.gemma import edit_gemma, generate, load_gemma
+from settings import (
+    DIRECTIONS_PATH,
+    GENERATION_BATCH_SIZE,
+    RUN_DIR,
+    SORRY_BENCH_OUTPUTS_PATH,
+)
+from src.gemma import edit_gemma, generate_batch, load_gemma
 from src.sorry_bench import current_run_id, load_questions, require_questions
 
 
@@ -53,36 +58,58 @@ def generate_condition(condition, questions, run_id, model, tokenizer, device):
     pending_questions = questions.loc[~questions["question_id"].isin(completed)]
 
     progress = tqdm(
-        pending_questions.itertuples(index=False),
-        total=len(pending_questions),
+        batched_rows(pending_questions, GENERATION_BATCH_SIZE),
+        total=batch_count(len(pending_questions), GENERATION_BATCH_SIZE),
         desc=f"gemma {condition}",
-        unit="prompt",
+        unit="batch",
     )
-    for row in progress:
-        progress.set_postfix(question_id=row.question_id)
-        answer, answer_tokens, max_new_tokens, hit_token_limit = generate(
+    for batch in progress:
+        first_question = batch["question_id"].iloc[0]
+        last_question = batch["question_id"].iloc[-1]
+        progress.set_postfix(question_id=f"{first_question}-{last_question}")
+        generations = generate_batch(
             model,
             tokenizer,
-            row.prompt,
+            batch["prompt"].tolist(),
             device,
         )
-        output = pd.DataFrame([{
-            "run_id": run_id,
-            "question_id": row.question_id,
-            "condition": condition,
-            "category": row.category,
-            "max_new_tokens": max_new_tokens,
-            "word_count": len(answer.split()),
-            "answer_tokens": answer_tokens,
-            "hit_token_limit": hit_token_limit,
-            "answer": answer,
-        }], columns=OUTPUT_FIELDS)
+        output = pd.DataFrame(
+            [
+                output_row(run_id, condition, question, generation)
+                for question, generation in zip(batch.itertuples(index=False), generations)
+            ],
+            columns=OUTPUT_FIELDS,
+        )
         output.to_csv(
             SORRY_BENCH_OUTPUTS_PATH,
             mode="a",
             header=not SORRY_BENCH_OUTPUTS_PATH.exists(),
             index=False,
         )
+
+
+def batched_rows(rows, batch_size):
+    for start in range(0, len(rows), batch_size):
+        yield rows.iloc[start:start + batch_size]
+
+
+def batch_count(row_count, batch_size):
+    return (row_count + batch_size - 1) // batch_size
+
+
+def output_row(run_id, condition, question, generation):
+    answer, answer_tokens, max_new_tokens, hit_token_limit = generation
+    return {
+        "run_id": run_id,
+        "question_id": question.question_id,
+        "condition": condition,
+        "category": question.category,
+        "max_new_tokens": max_new_tokens,
+        "word_count": len(answer.split()),
+        "answer_tokens": answer_tokens,
+        "hit_token_limit": hit_token_limit,
+        "answer": answer,
+    }
 
 
 def prepare_output_file():
