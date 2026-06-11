@@ -4,6 +4,8 @@ numpy==2.4.6
 pandas==3.0.3
 pytest==9.0.3
 scikit-learn==1.9.0
-torch==2.11.0
 tqdm==4.68.1
 transformers==5.10.2
+
+# Torch is platform-specific. scripts/runpod_experiment.sh installs the CUDA
+# 12.8 wheel that matches the current RTX 5090 RunPod driver.
