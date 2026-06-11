@@ -44,15 +44,22 @@ save_pip_freeze() {
   fi
 }
 
-run_step python --version
 if ! command -v nvidia-smi >/dev/null; then
   echo "nvidia-smi is missing; this RunPod experiment must run on a CUDA GPU pod." | tee -a "$log_path" >&2
   exit 1
 fi
 run_step nvidia-smi
 
-run_step python -m pip install -r requirements.txt
+python_bin="${PYTHON_BIN:-python3}"
+venv_dir="${VENV_DIR:-.venv}"
+run_step "$python_bin" --version
+run_step "$python_bin" -m venv "$venv_dir"
+# shellcheck source=/dev/null
+source "$venv_dir/bin/activate"
+run_step python --version
+run_step python -m pip install --upgrade pip
 run_step python -m pip install --index-url https://download.pytorch.org/whl/cu128 "torch==2.11.0+cu128"
+run_step python -m pip install -r requirements.txt
 save_pip_freeze runpod_requirements_base
 run_step python -c 'import torch; raise SystemExit(0 if torch.cuda.is_available() else "torch cannot see CUDA")'
 run_step python -m src.download_assets
