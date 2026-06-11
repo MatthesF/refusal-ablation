@@ -1,0 +1,10 @@
+# Official SORRY-Bench evaluator runtime.
+# Install this on the GPU machine after the base requirements.
+anthropic==0.109.1
+fschat==0.2.36
+openai==0.28.1
+shortuuid==1.0.13
+
+# vLLM resolves differently on local CPU machines and RunPod CUDA machines.
+# The RunPod runner records the exact installed version with pip freeze.
+vllm
