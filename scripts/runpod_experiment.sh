@@ -58,8 +58,8 @@ run_step "$python_bin" -m venv "$venv_dir"
 source "$venv_dir/bin/activate"
 run_step python --version
 run_step python -m pip install --upgrade pip
-run_step python -m pip install --index-url https://download.pytorch.org/whl/cu128 "torch==2.11.0+cu128"
 run_step python -m pip install -r requirements.txt
+run_step python -m pip install --index-url https://download.pytorch.org/whl/cu128 "torch==2.11.0+cu128"
 save_pip_freeze runpod_requirements_base
 run_step python -c 'import torch; raise SystemExit(0 if torch.cuda.is_available() else "torch cannot see CUDA")'
 run_step python -m src.download_assets
