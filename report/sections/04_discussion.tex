@@ -1,0 +1,29 @@
+\section{Discussion}
+
+TODO: Interpret the results in terms of the research questions.
+
+For unsafe prompts, a lower refusal rate in the ablated model indicates that the
+intervention weakened safety behavior. For benign prompts, a lower refusal rate
+may indicate improved helpfulness. The central interpretation is therefore the
+trade-off between reduced over-refusal and increased unsafe-prompt non-refusal.
+
+\subsection{Statistical Interpretation}
+
+TODO: Discuss both statistical and practical significance. Report whether the
+effect size is large enough to matter, not only whether the $p$-value is below
+0.05.
+
+\subsection{Limitations}
+
+The binary refused/answered label is simple and reproducible, but it does not
+directly measure answer harmfulness. An answered unsafe prompt is therefore a
+proxy for unsafe compliance, not proof that the response contained actionable
+harmful content. Manual labels may also contain subjectivity. Finally, the
+results depend on the sampled prompts, prompt categories, model version, and
+ablation method.
+
+\subsection{Ethical Considerations}
+
+This evaluation studies safety behavior under harmful prompts. The report should
+avoid reproducing harmful prompt text or unsafe model outputs unless necessary,
+and any examples should be paraphrased or summarized at a high level.

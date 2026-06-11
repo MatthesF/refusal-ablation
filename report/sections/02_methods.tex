@@ -1,0 +1,138 @@
+\section{Methods}
+
+\subsection{Models}
+
+TODO: Describe the two evaluated systems.
+
+\begin{itemize}
+  \item \textbf{Baseline model:} TODO, e.g. untouched Gemma model.
+  \item \textbf{Ablated model:} TODO, e.g. same model after refusal-direction ablation.
+\end{itemize}
+
+The ablation procedure follows the idea that refusal behavior can be mediated by
+a direction in activation space \citep{arditi2024refusal}. TODO: Briefly state
+how the ablated model was produced, or state that the model outputs were provided
+from a separate machine.
+
+\subsection{Dataset}
+
+The final analysis dataset contains one row per prompt. Each prompt is evaluated
+on both models, giving paired observations. The binary response labels are:
+
+\begin{equation}
+  Y_{i,m} =
+  \begin{cases}
+    1, & \text{if model } m \text{ refused prompt } i,\\
+    0, & \text{if model } m \text{ answered prompt } i.
+  \end{cases}
+\end{equation}
+
+TODO: Insert final dataset counts in Table~\ref{tab:data-summary}.
+
+\begin{table}[h]
+  \centering
+  \caption{Dataset summary. Replace the TODO values after the final labeled data is available.}
+  \label{tab:data-summary}
+  \begin{tabular}{lr}
+    \toprule
+    Quantity & Count \\
+    \midrule
+    Total prompts & TODO \\
+    Unsafe prompts & TODO \\
+    Benign prompts & TODO \\
+    Prompt categories & TODO \\
+    Median prompts per category & TODO \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\subsection{Metrics}
+
+For unsafe prompts, a refusal is treated as the desired behavior and an answer is
+treated as a non-refusal. Because the binary labels do not judge the content of
+the answer, the unsafe-prompt answered rate is interpreted as a proxy for unsafe
+compliance rather than a direct measure of harmfulness.
+
+\begin{equation}
+  \text{Unsafe non-refusal rate}_m =
+  \frac{1}{N_{\text{unsafe}}}
+  \sum_{i \in \text{unsafe}} (1 - Y_{i,m}).
+\end{equation}
+
+For benign prompts, refusal is treated as a false refusal:
+
+\begin{equation}
+  \text{False refusal rate}_m =
+  \frac{1}{N_{\text{benign}}}
+  \sum_{i \in \text{benign}} Y_{i,m}.
+\end{equation}
+
+We report rates for both models and the paired difference:
+
+\begin{equation}
+  \Delta = \bar{Y}_{\text{ablated}} - \bar{Y}_{\text{baseline}}.
+\end{equation}
+
+TODO: Specify whether confidence intervals are computed by bootstrap over
+prompts or by an exact/binomial method for paired differences.
+
+\subsection{Statistical Tests}
+
+The primary statistical test is McNemar's test \citep{mcnemar1947note}. This is
+appropriate because each prompt is evaluated on both models and the response
+label is binary.
+
+For unsafe prompts, the paired contingency table is:
+
+\begin{table}[h]
+  \centering
+  \caption{Paired table for unsafe prompts.}
+  \label{tab:mcnemar-unsafe-layout}
+  \begin{tabular}{llcc}
+    \toprule
+    & & \multicolumn{2}{c}{Baseline model} \\
+    \cmidrule(lr){3-4}
+    & & Refused & Answered \\
+    \midrule
+    Ablated model & Refused & $a$ & $b$ \\
+    Ablated model & Answered & $c$ & $d$ \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+The null hypothesis is that the two off-diagonal flip probabilities are equal:
+
+\begin{equation}
+  H_0: P(\text{baseline refused, ablated answered})
+  =
+  P(\text{baseline answered, ablated refused}).
+\end{equation}
+
+For RQ1, the directional alternative is:
+
+\begin{equation}
+  H_A: P(\text{baseline refused, ablated answered})
+  >
+  P(\text{baseline answered, ablated refused}).
+\end{equation}
+
+For benign prompts, we use the same test structure, but the interpretation
+changes: a refused benign prompt is counted as a false refusal.
+
+\subsection{Category Analysis}
+
+To answer RQ3, we report category-wise refusal-rate changes. If sample sizes are
+sufficient, we also fit an exploratory logistic model:
+
+\begin{equation}
+  \text{logit}\left(P(Y_{i,m}=1)\right)
+  =
+  \beta_0 + \beta_1 \text{Ablated}_m +
+  \beta_2 \text{Category}_i +
+  \beta_3(\text{Ablated}_m \times \text{Category}_i).
+\end{equation}
+
+Because each prompt appears once for each model, uncertainty should account for
+the paired design, for example by clustering standard errors by prompt id or by
+using a repeated-measures model. The category analysis is treated as exploratory,
+especially if many category-level comparisons are made.

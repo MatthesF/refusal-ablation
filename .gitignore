@@ -20,6 +20,7 @@ data/*
 artifacts/
 ablation_runs/
 project/
+project_sources/
 
 # Course/reference material and generated binaries.
 assigment/
