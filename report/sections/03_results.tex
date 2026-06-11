@@ -1,0 +1,72 @@
+\section{Results}
+
+\subsection{Unsafe Prompts}
+
+TODO: Report the main unsafe-prompt refusal rates and McNemar result.
+
+\begin{table}[h]
+  \centering
+  \caption{Main paired result on unsafe prompts.}
+  \label{tab:unsafe-results}
+  \begin{tabular}{lr}
+    \toprule
+    Statistic & Value \\
+    \midrule
+    Unsafe prompts & TODO \\
+    Baseline refusal rate & TODO \\
+    Ablated refusal rate & TODO \\
+    Difference in refusal rate & TODO \\
+    Baseline refused, ablated answered & TODO \\
+    Baseline answered, ablated refused & TODO \\
+    McNemar $p$-value & TODO \\
+    95\% confidence interval for paired difference & TODO \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+TODO: Add Figure~\ref{fig:refusal-rates} after generating the final plot.
+
+\begin{figure}[h]
+  \centering
+  % \includegraphics[width=0.75\linewidth]{figures/refusal_rates.pdf}
+  \fbox{\parbox[c][4cm][c]{0.75\linewidth}{\centering TODO: Refusal rates by model and prompt type}}
+  \caption{Refusal rates for the baseline and ablated model, separated by prompt type.}
+  \label{fig:refusal-rates}
+\end{figure}
+
+\subsection{Benign Prompts}
+
+TODO: Report false-refusal rates and the benign-prompt McNemar result.
+
+\begin{table}[h]
+  \centering
+  \caption{False-refusal result on benign prompts.}
+  \label{tab:benign-results}
+  \begin{tabular}{lr}
+    \toprule
+    Statistic & Value \\
+    \midrule
+    Benign prompts & TODO \\
+    Baseline false-refusal rate & TODO \\
+    Ablated false-refusal rate & TODO \\
+    Difference in false-refusal rate & TODO \\
+    Baseline refused, ablated answered & TODO \\
+    Baseline answered, ablated refused & TODO \\
+    McNemar $p$-value & TODO \\
+    95\% confidence interval for paired difference & TODO \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\subsection{Category-Level Effects}
+
+TODO: Present category-wise refusal-rate differences. If category tests are run,
+state whether p-values were corrected for multiple comparisons.
+
+\begin{figure}[h]
+  \centering
+  % \includegraphics[width=0.85\linewidth]{figures/category_effects.pdf}
+  \fbox{\parbox[c][5cm][c]{0.85\linewidth}{\centering TODO: Category-wise refusal-rate changes}}
+  \caption{Change in refusal rate from baseline to ablated model by prompt category.}
+  \label{fig:category-effects}
+\end{figure}

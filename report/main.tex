@@ -1,0 +1,54 @@
+\documentclass{article}
+
+\usepackage{arxiv}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{hyperref}
+\usepackage{url}
+\usepackage{booktabs}
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{graphicx}
+\usepackage{natbib}
+\usepackage{doi}
+
+\title{Statistical Evaluation of Refusal Ablation in a Large Language Model}
+
+\author{
+  Author One \\
+  Technical University of Denmark \\
+  \texttt{s000000@student.dtu.dk}
+  \And
+  Author Two \\
+  Technical University of Denmark \\
+  \texttt{s000000@student.dtu.dk}
+}
+
+\renewcommand{\shorttitle}{Refusal Ablation Evaluation}
+
+\hypersetup{
+  pdftitle={Statistical Evaluation of Refusal Ablation in a Large Language Model},
+  pdfauthor={TODO},
+  pdfkeywords={large language models, refusal ablation, safety evaluation, McNemar test}
+}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+  TODO: Summarize the evaluation question, paired dataset, binary refusal labels,
+  main statistical test, key result, and interpretation in 150--200 words.
+\end{abstract}
+
+\keywords{large language models \and refusal ablation \and safety evaluation \and paired model comparison}
+
+\input{sections/01_introduction}
+\input{sections/02_methods}
+\input{sections/03_results}
+\input{sections/04_discussion}
+\input{sections/05_conclusion}
+
+\bibliographystyle{unsrtnat}
+\bibliography{references}
+
+\end{document}

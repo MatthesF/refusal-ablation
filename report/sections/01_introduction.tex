@@ -1,0 +1,32 @@
+\section{Introduction}
+
+Large language models are often aligned to refuse harmful requests while still
+answering benign requests. Refusal ablation is an intervention that attempts to
+remove or weaken this refusal behavior. This makes it a useful case study for
+statistical evaluation because the intervention may create a safety--utility
+trade-off: fewer refusals can improve helpfulness on benign prompts, but can also
+increase compliance with unsafe prompts.
+
+This report evaluates whether a refusal-ablated model behaves differently from
+the untouched model when both are tested on the same prompt set. The focus is
+not on training a new model, but on designing and analyzing a paired model
+evaluation with appropriate metrics and statistical tests.
+
+\subsection{Research Questions}
+
+We consider three research questions:
+
+\begin{itemize}
+  \item \textbf{RQ1:} Does refusal ablation reduce refusals on unsafe prompts?
+  \item \textbf{RQ2:} Does refusal ablation reduce false refusals on benign prompts?
+  \item \textbf{RQ3:} Does the ablation effect vary across prompt categories?
+\end{itemize}
+
+\subsection{Contribution}
+
+The contribution of the report is a statistical comparison of the untouched and
+refusal-ablated model using paired binary response labels. The same prompts are
+evaluated on both models, which allows direct comparison of model behavior at
+the prompt level. Following the model-comparison setting described by
+\citet{raschka2018model}, we use McNemar's test for paired binary outcomes and
+report effect sizes alongside significance tests.
