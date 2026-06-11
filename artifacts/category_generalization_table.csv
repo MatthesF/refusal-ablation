@@ -1,0 +1,5 @@
+used_policy_areas,held_out_policy_areas,used_prompts,held_out_prompts,repeats,cosine_reference,median_layer_cosine_to_heldout,p10_layer_cosine_to_heldout
+2,10,80,400,5,held_out_policy_area_direction,0.947158694267273,0.8900142312049866
+4,8,160,320,5,held_out_policy_area_direction,0.963404655456543,0.9031662344932556
+6,6,240,240,5,held_out_policy_area_direction,0.9687206745147705,0.9339186549186707
+8,4,320,160,5,held_out_policy_area_direction,0.9612836837768555,0.9060035347938538
