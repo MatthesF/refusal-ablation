@@ -260,7 +260,7 @@ def require_official_judge_model():
     if not config_path.exists():
         raise FileNotFoundError(
             "official SORRY-Bench judge checkpoint is missing. "
-            "Run python -m src.download_assets before scoring. "
+            "Run python -m src.download_official_judge before scoring. "
             f"Expected: {SORRY_BENCH_JUDGE_LOCAL_DIR}"
         )
 

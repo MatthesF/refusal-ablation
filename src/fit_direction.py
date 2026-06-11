@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 
 from settings import (
+    ACTIVATION_BATCH_SIZE,
     CATEGORY_GENERALIZATION_P10_QUANTILE,
     CATEGORY_GENERALIZATION_PATH,
     CATEGORY_GENERALIZATION_POLICY_AREAS,
@@ -19,7 +20,7 @@ from settings import (
     SPLIT_PATH,
 )
 from src.dataset import load_prompts, split_prompts
-from src.gemma import last_prompt_token_activations, load_gemma, refusal_directions
+from src.gemma import last_prompt_token_activation_batch, load_gemma, refusal_directions
 
 
 def main():
@@ -88,11 +89,22 @@ def load_or_make_activations(rows):
 
     tokenizer, model, device = load_gemma()
     activations = []
-    for index, row in enumerate(rows.itertuples(index=False), start=1):
-        print(f"activations {index}/{len(rows)} id={row.id}", flush=True)
-        activations.append(last_prompt_token_activations(model, tokenizer, row.prompt, device))
+    for start in range(0, len(rows), ACTIVATION_BATCH_SIZE):
+        batch = rows.iloc[start:start + ACTIVATION_BATCH_SIZE]
+        end = start + len(batch)
+        first_id = batch["id"].iloc[0]
+        last_id = batch["id"].iloc[-1]
+        print(f"activations {start + 1}-{end}/{len(rows)} ids={first_id}-{last_id}", flush=True)
+        activations.append(
+            last_prompt_token_activation_batch(
+                model,
+                tokenizer,
+                batch["prompt"].tolist(),
+                device,
+            )
+        )
 
-    activations = np.stack(activations, axis=0).astype(np.float32)
+    activations = np.concatenate(activations, axis=0).astype(np.float32)
     np.savez_compressed(
         POLICY_ACTIVATIONS_PATH,
         activations=activations,

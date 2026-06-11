@@ -65,6 +65,7 @@ run_step python -c 'import torch; raise SystemExit(0 if torch.cuda.is_available(
 run_step python -m src.download_assets
 run_step python -m src.fit_direction
 run_step python -m src.run_gemma_sorry_bench
+run_step python -m src.download_official_judge
 run_step python -m pip install --use-pep517 -r requirements-official-evaluator.txt
 save_pip_freeze runpod_requirements_official
 run_step python -m src.score_sorry_bench_official

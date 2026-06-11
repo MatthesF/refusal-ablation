@@ -26,6 +26,24 @@ def test_generation_room_rejects_prompts_outside_context_window():
         gemma.generation_room(model, prompt_length=8)
 
 
+def test_last_non_padding_indices_handles_left_and_right_padding():
+    attention_mask = torch.tensor([
+        [0, 0, 1, 1],
+        [1, 1, 1, 0],
+    ])
+
+    indices = gemma.last_non_padding_indices(attention_mask)
+
+    assert indices.tolist() == [3, 2]
+
+
+def test_trim_generated_token_ids_stops_after_first_eos():
+    assert gemma.trim_generated_token_ids(
+        [11, 12, 2, 0, 0],
+        eos_token_id=2,
+    ) == [11, 12, 2]
+
+
 def test_refusal_directions_rejects_degenerate_activation_means():
     activations = np.zeros((2, 1, 3), dtype=np.float32)
     labels = np.array(["safe", "unsafe"])

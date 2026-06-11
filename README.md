@@ -17,13 +17,19 @@ python -m src.download_assets
 python -m src.fit_direction
 python -m src.run_gemma_sorry_bench
 
+python -m src.download_official_judge
 python -m pip install -r requirements-official-evaluator.txt
 python -m src.score_sorry_bench_official
 ```
 
 `src.download_assets` requires access to the gated
-`sorry-bench/sorry-bench-202503` Hugging Face dataset. Accept the dataset terms
-and export `HF_TOKEN` if Hugging Face requires authentication.
+`sorry-bench/sorry-bench-202503` Hugging Face dataset and downloads the pinned
+official evaluator code. Accept the dataset terms and export `HF_TOKEN` if
+Hugging Face requires authentication.
+
+`src.download_official_judge` downloads the gated official judge checkpoint. It
+is needed for scoring only, so missing judge access does not block fitting the
+direction or generating Gemma SORRY-Bench answers.
 
 The official evaluator requirements are installed after Gemma generation so
 vLLM's CUDA/Torch dependencies do not interfere with the base experiment
@@ -164,6 +170,8 @@ category generalization budgets: 2, 4, 6, 8 used policy areas
 category generalization repeats: 5
 category generalization reference: held-out policy-area direction
 generation cap: 4096 new tokens
+activation batch size: 32
+generation batch size: 8
 SORRY-Bench dataset: sorry-bench/sorry-bench-202503
 SORRY-Bench dataset revision: 612a4e1f45db8adf884fa62318ddf9fa1c6e75e9
 SORRY-Bench judge: sorry-bench/ft-mistral-7b-instruct-v0.2-sorry-bench-202406
@@ -178,7 +186,8 @@ src/dataset.py                    local CSV loading and policy-area-disjoint spl
 src/gemma.py                      Gemma loading, generation, activations, edit
 src/fit_direction.py              fit directions and write category generalization data
 src/sorry_bench.py                SORRY-Bench loading, official export/import
-src/download_assets.py            download dataset, judge model, official evaluator
+src/download_assets.py            download dataset and official evaluator
+src/download_official_judge.py    download gated official judge checkpoint
 src/run_gemma_sorry_bench.py      generate baseline and edited Gemma answers
 src/score_sorry_bench_official.py score answers with the official judge
 scripts/runpod_experiment.sh      pod-side runner with live logs
