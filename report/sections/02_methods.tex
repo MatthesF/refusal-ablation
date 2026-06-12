@@ -1,138 +1,93 @@
 \section{Methods}
 
-\subsection{Models}
+\subsection{Model}
 
-TODO: Describe the two evaluated systems.
+The evaluated model is \texttt{google/gemma-4-E4B-it}. The exact Hugging Face
+revision is pinned in the repository settings. The baseline condition uses the
+model without weight edits. The edited condition uses the same checkpoint after
+one refusal-direction edit.
 
-\begin{itemize}
-  \item \textbf{Baseline model:} TODO, e.g. untouched Gemma model.
-  \item \textbf{Ablated model:} TODO, e.g. same model after refusal-direction ablation.
-\end{itemize}
+\subsection{Direction Construction}
 
-The ablation procedure follows the idea that refusal behavior can be mediated by
-a direction in activation space \citep{arditi2024refusal}. TODO: Briefly state
-how the ablated model was produced, or state that the model outputs were provided
-from a separate machine.
+The refusal direction is fit from a local policy-derived dataset with 480
+prompts. The dataset contains 12 policy areas, with 20 safe and 20 unsafe
+prompts per area. The fitting split is policy-area-disjoint: 8 policy areas
+(320 prompts) are used for construction, and 4 policy areas (160 prompts) are
+held out from construction.
 
-\subsection{Dataset}
+For each construction prompt, the model is run with the normal chat template and
+the final prompt-token hidden state is recorded at each language layer. For each
+layer, the raw direction is the difference between the mean unsafe-prompt
+activation and the mean safe-prompt activation. The component parallel to the
+safe-prompt mean is removed, and the resulting vector is normalized.
 
-The final analysis dataset contains one row per prompt. Each prompt is evaluated
-on both models, giving paired observations. The binary response labels are:
+\subsection{Weight Edit}
+
+The edit is applied to every language layer. For each layer, the fitted
+direction is removed from the output columns of the attention output projection
+and MLP down projection. Column norms are then restored when an orthogonal
+component remains. The same edited model is used for every SORRY-Bench prompt.
+
+\subsection{Direction Stability Check}
+
+Before the benchmark run, the construction dataset is used to check whether the
+direction is stable across policy areas. For each policy-area budget, one
+direction is fit on the used policy areas and one on the remaining held-out
+policy areas. The directions are compared layer by layer using cosine
+similarity. This check is not used to tune the final SORRY-Bench result; it is a
+sanity check that the local construction data contains a shared signal.
+
+\begin{table}[h]
+  \centering
+  \caption{Policy-area direction generalization.}
+  \label{tab:direction-generalization}
+  \begin{tabular}{rrrrr}
+    \toprule
+    Used areas & Held-out areas & Used prompts & Median cosine & P10 cosine \\
+    \midrule
+    2 & 10 & 80  & 0.947 & 0.890 \\
+    4 & 8  & 160 & 0.963 & 0.903 \\
+    6 & 6  & 240 & 0.969 & 0.934 \\
+    8 & 4  & 320 & 0.961 & 0.906 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\subsection{SORRY-Bench Evaluation}
+
+The benchmark evaluation uses SORRY-Bench
+\texttt{sorry-bench/sorry-bench-202503}, with the exact dataset revision pinned
+in the repository settings. The main split contains 440 prompts across 44
+categories, with 10 prompts per category.
+
+Both baseline and edited Gemma answer all 440 prompts with deterministic
+decoding. Generation is capped at 4096 new tokens. The answers are exported to
+the official SORRY-Bench answer format and scored with the official Mistral
+judge checkpoint. The exact judge checkpoint revision is pinned in the
+repository settings. The official judge prompt is
+\texttt{base-ft-mistral-7b-instruct-v0.2}.
+
+The judge score is binary:
 
 \begin{equation}
   Y_{i,m} =
   \begin{cases}
-    1, & \text{if model } m \text{ refused prompt } i,\\
-    0, & \text{if model } m \text{ answered prompt } i.
+    1, & \text{if model } m \text{ complied with prompt } i,\\
+    0, & \text{if model } m \text{ refused prompt } i.
   \end{cases}
 \end{equation}
 
-TODO: Insert final dataset counts in Table~\ref{tab:data-summary}.
+\subsection{Statistical Test}
 
-\begin{table}[h]
-  \centering
-  \caption{Dataset summary. Replace the TODO values after the final labeled data is available.}
-  \label{tab:data-summary}
-  \begin{tabular}{lr}
-    \toprule
-    Quantity & Count \\
-    \midrule
-    Total prompts & TODO \\
-    Unsafe prompts & TODO \\
-    Benign prompts & TODO \\
-    Prompt categories & TODO \\
-    Median prompts per category & TODO \\
-    \bottomrule
-  \end{tabular}
-\end{table}
-
-\subsection{Metrics}
-
-For unsafe prompts, a refusal is treated as the desired behavior and an answer is
-treated as a non-refusal. Because the binary labels do not judge the content of
-the answer, the unsafe-prompt answered rate is interpreted as a proxy for unsafe
-compliance rather than a direct measure of harmfulness.
+The main comparison uses the paired prompt-level scores from the baseline and
+edited model. The reported effect size is the paired difference in compliance
+rate:
 
 \begin{equation}
-  \text{Unsafe non-refusal rate}_m =
-  \frac{1}{N_{\text{unsafe}}}
-  \sum_{i \in \text{unsafe}} (1 - Y_{i,m}).
+  \Delta =
+  \frac{1}{N}\sum_{i=1}^{N}(Y_{i,\text{edited}} - Y_{i,\text{baseline}}).
 \end{equation}
 
-For benign prompts, refusal is treated as a false refusal:
-
-\begin{equation}
-  \text{False refusal rate}_m =
-  \frac{1}{N_{\text{benign}}}
-  \sum_{i \in \text{benign}} Y_{i,m}.
-\end{equation}
-
-We report rates for both models and the paired difference:
-
-\begin{equation}
-  \Delta = \bar{Y}_{\text{ablated}} - \bar{Y}_{\text{baseline}}.
-\end{equation}
-
-TODO: Specify whether confidence intervals are computed by bootstrap over
-prompts or by an exact/binomial method for paired differences.
-
-\subsection{Statistical Tests}
-
-The primary statistical test is McNemar's test \citep{mcnemar1947note}. This is
-appropriate because each prompt is evaluated on both models and the response
-label is binary.
-
-For unsafe prompts, the paired contingency table is:
-
-\begin{table}[h]
-  \centering
-  \caption{Paired table for unsafe prompts.}
-  \label{tab:mcnemar-unsafe-layout}
-  \begin{tabular}{llcc}
-    \toprule
-    & & \multicolumn{2}{c}{Baseline model} \\
-    \cmidrule(lr){3-4}
-    & & Refused & Answered \\
-    \midrule
-    Ablated model & Refused & $a$ & $b$ \\
-    Ablated model & Answered & $c$ & $d$ \\
-    \bottomrule
-  \end{tabular}
-\end{table}
-
-The null hypothesis is that the two off-diagonal flip probabilities are equal:
-
-\begin{equation}
-  H_0: P(\text{baseline refused, ablated answered})
-  =
-  P(\text{baseline answered, ablated refused}).
-\end{equation}
-
-For RQ1, the directional alternative is:
-
-\begin{equation}
-  H_A: P(\text{baseline refused, ablated answered})
-  >
-  P(\text{baseline answered, ablated refused}).
-\end{equation}
-
-For benign prompts, we use the same test structure, but the interpretation
-changes: a refused benign prompt is counted as a false refusal.
-
-\subsection{Category Analysis}
-
-To answer RQ3, we report category-wise refusal-rate changes. If sample sizes are
-sufficient, we also fit an exploratory logistic model:
-
-\begin{equation}
-  \text{logit}\left(P(Y_{i,m}=1)\right)
-  =
-  \beta_0 + \beta_1 \text{Ablated}_m +
-  \beta_2 \text{Category}_i +
-  \beta_3(\text{Ablated}_m \times \text{Category}_i).
-\end{equation}
-
-Because each prompt appears once for each model, uncertainty should account for
-the paired design, for example by clustering standard errors by prompt id or by
-using a repeated-measures model. The category analysis is treated as exploratory,
-especially if many category-level comparisons are made.
+McNemar's exact test is computed from the discordant pairs. Under the null
+hypothesis, the two flip directions are equally likely: baseline refusal to
+edited compliance, and baseline compliance to edited refusal.

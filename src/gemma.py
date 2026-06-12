@@ -31,33 +31,24 @@ def load_gemma():
     return tokenizer, model, device
 
 
-def chat_text(tokenizer, prompt):
-    text = prompt
-    if tokenizer.chat_template:
-        text = tokenizer.apply_chat_template(
-            [{"role": "user", "content": prompt}],
-            tokenize=False,
-            add_generation_prompt=True,
-        )
-    return text
-
-
-def chat_tokens(tokenizer, prompt, device):
-    return batch_chat_tokens(tokenizer, [prompt], device)
-
-
 def batch_chat_tokens(tokenizer, prompts, device):
     if not prompts:
         raise ValueError("Gemma batch cannot be empty")
     if tokenizer.pad_token_id is None:
         raise ValueError("Gemma tokenizer must define pad_token_id for batching")
 
-    texts = [chat_text(tokenizer, prompt) for prompt in prompts]
+    texts = []
+    for prompt in prompts:
+        if tokenizer.chat_template:
+            text = tokenizer.apply_chat_template(
+                [{"role": "user", "content": prompt}],
+                tokenize=False,
+                add_generation_prompt=True,
+            )
+        else:
+            text = prompt
+        texts.append(text)
     return tokenizer(texts, return_tensors="pt", padding=True).to(device)
-
-
-def last_prompt_token_activations(model, tokenizer, prompt, device):
-    return last_prompt_token_activation_batch(model, tokenizer, [prompt], device)[0]
 
 
 def last_prompt_token_activation_batch(model, tokenizer, prompts, device):
@@ -73,10 +64,6 @@ def last_prompt_token_activation_batch(model, tokenizer, prompts, device):
         hidden[batch_indices, prompt_last, :].detach().float().cpu()
         for hidden in output.hidden_states[1:]
     ], dim=1).numpy()
-
-
-def generate(model, tokenizer, prompt, device):
-    return generate_batch(model, tokenizer, [prompt], device)[0]
 
 
 def generate_batch(model, tokenizer, prompts, device):
@@ -101,10 +88,9 @@ def generate_batch(model, tokenizer, prompts, device):
     rows = []
     generated_tokens = output[:, prompt_width:].detach().cpu()
     for answer_tokens in generated_tokens:
-        token_ids = trim_generated_token_ids(
-            answer_tokens.tolist(),
-            tokenizer.eos_token_id,
-        )
+        token_ids = answer_tokens.tolist()
+        if tokenizer.eos_token_id in token_ids:
+            token_ids = token_ids[:token_ids.index(tokenizer.eos_token_id) + 1]
         answer = tokenizer.decode(token_ids, skip_special_tokens=True).strip()
         ended_on_eos = tokenizer.eos_token_id in token_ids
         hit_token_limit = len(token_ids) >= max_new_tokens and not ended_on_eos
@@ -124,12 +110,6 @@ def last_non_padding_indices(attention_mask):
     if torch.any(indices < 0):
         raise ValueError("cannot run Gemma on an empty prompt batch")
     return indices
-
-
-def trim_generated_token_ids(token_ids, eos_token_id):
-    if eos_token_id in token_ids:
-        return token_ids[:token_ids.index(eos_token_id) + 1]
-    return token_ids
 
 
 def generation_room(model, prompt_length):
@@ -171,8 +151,12 @@ def edit_gemma(model, directions):
 
     with torch.no_grad():
         for layer, direction in zip(layers, directions):
-            layer.self_attn.o_proj.weight.copy_(remove_direction(layer.self_attn.o_proj.weight, direction))
-            layer.mlp.down_proj.weight.copy_(remove_direction(layer.mlp.down_proj.weight, direction))
+            layer.self_attn.o_proj.weight.copy_(
+                remove_direction(layer.self_attn.o_proj.weight, direction)
+            )
+            layer.mlp.down_proj.weight.copy_(
+                remove_direction(layer.mlp.down_proj.weight, direction)
+            )
 
 
 def remove_direction(weight, direction):

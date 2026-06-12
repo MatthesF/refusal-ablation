@@ -32,6 +32,8 @@ def load_prompts():
     labels = set(prompts["label"])
     if labels != {"safe", "unsafe"}:
         raise ValueError("dataset labels must be exactly: safe, unsafe")
+    if prompts["prompt"].str.len().eq(0).any():
+        raise ValueError("dataset prompts must be non-empty")
 
     validate_policy_dataset(prompts)
 
@@ -39,30 +41,25 @@ def load_prompts():
 
 
 def split_prompts(prompts):
-    construction_categories = choose_construction_categories(prompts)
+    # Split policy areas, not individual prompts, so construction and held-out
+    # data do not share categories.
+    categories = prompts[["category"]].drop_duplicates().sort_values("category")
+    construction_categories, _ = train_test_split(
+        categories,
+        train_size=CONSTRUCTION_POLICY_AREAS,
+        random_state=RANDOM_SEED,
+    )
 
     split = prompts.copy()
     split["split"] = "test"
     split["test_group"] = split["label"]
 
     # A prompt is either used to build the edit or to evaluate it, never both.
-    construction = split["category"].isin(construction_categories)
+    construction = split["category"].isin(set(construction_categories["category"]))
     split.loc[construction, "split"] = "construction"
     split.loc[construction, "test_group"] = "construction"
 
     return split.sort_values("id").reset_index(drop=True)
-
-
-def choose_construction_categories(prompts):
-    categories = prompts[["category"]].drop_duplicates().sort_values("category")
-
-    # Split policy areas, not prompts. This is the no-leakage part of the design.
-    construction, _ = train_test_split(
-        categories,
-        train_size=CONSTRUCTION_POLICY_AREAS,
-        random_state=RANDOM_SEED,
-    )
-    return set(construction["category"])
 
 
 def validate_policy_dataset(prompts):

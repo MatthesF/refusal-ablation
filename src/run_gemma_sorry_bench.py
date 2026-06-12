@@ -33,7 +33,13 @@ def main():
     RUN_DIR.mkdir(parents=True, exist_ok=True)
     prepare_output_file()
     questions = load_questions()
-    directions = load_directions()
+    with np.load(DIRECTIONS_PATH, allow_pickle=False) as direction_file:
+        if "split_style" not in direction_file.files:
+            raise ValueError(
+                "refusal_directions.npz is missing fit metadata; "
+                "rerun python -m src.fit_direction"
+            )
+        directions = direction_file["directions"]
     run_id = current_run_id()
 
     tokenizer, model, device = load_gemma()
@@ -46,24 +52,19 @@ def main():
     print(f"wrote Gemma SORRY-Bench outputs: {SORRY_BENCH_OUTPUTS_PATH}", flush=True)
 
 
-def load_directions():
-    with np.load(DIRECTIONS_PATH, allow_pickle=False) as direction_file:
-        if "split_style" not in direction_file.files:
-            raise ValueError("refusal_directions.npz is missing fit metadata; rerun python -m src.fit_direction")
-        return direction_file["directions"]
-
-
 def generate_condition(condition, questions, run_id, model, tokenizer, device):
     completed = completed_question_ids(condition, run_id)
     pending_questions = questions.loc[~questions["question_id"].isin(completed)]
+    total_batches = (len(pending_questions) + GENERATION_BATCH_SIZE - 1) // GENERATION_BATCH_SIZE
 
     progress = tqdm(
-        batched_rows(pending_questions, GENERATION_BATCH_SIZE),
-        total=batch_count(len(pending_questions), GENERATION_BATCH_SIZE),
+        range(0, len(pending_questions), GENERATION_BATCH_SIZE),
+        total=total_batches,
         desc=f"gemma {condition}",
         unit="batch",
     )
-    for batch in progress:
+    for start in progress:
+        batch = pending_questions.iloc[start:start + GENERATION_BATCH_SIZE]
         first_question = batch["question_id"].iloc[0]
         last_question = batch["question_id"].iloc[-1]
         progress.set_postfix(question_id=f"{first_question}-{last_question}")
@@ -73,43 +74,28 @@ def generate_condition(condition, questions, run_id, model, tokenizer, device):
             batch["prompt"].tolist(),
             device,
         )
-        output = pd.DataFrame(
-            [
-                output_row(run_id, condition, question, generation)
-                for question, generation in zip(batch.itertuples(index=False), generations)
-            ],
-            columns=OUTPUT_FIELDS,
-        )
+        output_rows = []
+        for question, generation in zip(batch.itertuples(index=False), generations):
+            answer, answer_tokens, max_new_tokens, hit_token_limit = generation
+            output_rows.append({
+                "run_id": run_id,
+                "question_id": question.question_id,
+                "condition": condition,
+                "category": question.category,
+                "max_new_tokens": max_new_tokens,
+                "word_count": len(answer.split()),
+                "answer_tokens": answer_tokens,
+                "hit_token_limit": hit_token_limit,
+                "answer": answer,
+            })
+
+        output = pd.DataFrame(output_rows, columns=OUTPUT_FIELDS)
         output.to_csv(
             SORRY_BENCH_OUTPUTS_PATH,
             mode="a",
             header=not SORRY_BENCH_OUTPUTS_PATH.exists(),
             index=False,
         )
-
-
-def batched_rows(rows, batch_size):
-    for start in range(0, len(rows), batch_size):
-        yield rows.iloc[start:start + batch_size]
-
-
-def batch_count(row_count, batch_size):
-    return (row_count + batch_size - 1) // batch_size
-
-
-def output_row(run_id, condition, question, generation):
-    answer, answer_tokens, max_new_tokens, hit_token_limit = generation
-    return {
-        "run_id": run_id,
-        "question_id": question.question_id,
-        "condition": condition,
-        "category": question.category,
-        "max_new_tokens": max_new_tokens,
-        "word_count": len(answer.split()),
-        "answer_tokens": answer_tokens,
-        "hit_token_limit": hit_token_limit,
-        "answer": answer,
-    }
 
 
 def prepare_output_file():

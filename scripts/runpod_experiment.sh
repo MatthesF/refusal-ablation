@@ -4,7 +4,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 if [[ -z "${HF_TOKEN:-}" ]]; then
-  echo "HF_TOKEN is missing. Accept the SORRY-Bench dataset terms, then export HF_TOKEN before running." >&2
+  echo "HF_TOKEN is missing. Accept the SORRY-Bench dataset terms, then export HF_TOKEN." >&2
   exit 1
 fi
 
@@ -45,29 +45,44 @@ save_pip_freeze() {
 }
 
 if ! command -v nvidia-smi >/dev/null; then
-  echo "nvidia-smi is missing; this RunPod experiment must run on a CUDA GPU pod." | tee -a "$log_path" >&2
+  echo "nvidia-smi is missing; this experiment must run on a CUDA GPU pod." \
+    | tee -a "$log_path" >&2
   exit 1
 fi
 run_step nvidia-smi
 
 python_bin="${PYTHON_BIN:-python3}"
-venv_dir="${VENV_DIR:-.venv}"
+gemma_venv="${GEMMA_VENV_DIR:-.venv-gemma}"
+judge_venv="${JUDGE_VENV_DIR:-.venv-judge}"
 run_step "$python_bin" --version
-run_step "$python_bin" -m venv "$venv_dir"
+
+run_step rm -rf "$gemma_venv"
+run_step "$python_bin" -m venv "$gemma_venv"
 # shellcheck source=/dev/null
-source "$venv_dir/bin/activate"
+source "$gemma_venv/bin/activate"
 run_step python --version
 run_step python -m pip install --upgrade pip
-run_step python -m pip install --index-url https://download.pytorch.org/whl/cu128 "torch==2.11.0+cu128"
+run_step python -m pip install \
+  --index-url https://download.pytorch.org/whl/cu128 \
+  "torch==2.11.0+cu128"
 run_step python -m pip install -r requirements.txt
-save_pip_freeze runpod_requirements_base
-run_step python -c 'import torch; raise SystemExit(0 if torch.cuda.is_available() else "torch cannot see CUDA")'
+save_pip_freeze runpod_requirements_gemma
+run_step python -c 'import torch; print(torch.cuda.get_device_name(0))'
 run_step python -m src.download_assets
 run_step python -m src.fit_direction
 run_step python -m src.run_gemma_sorry_bench
 run_step python -m src.download_official_judge
+deactivate
+
+run_step rm -rf "$judge_venv"
+run_step "$python_bin" -m venv "$judge_venv"
+# shellcheck source=/dev/null
+source "$judge_venv/bin/activate"
+run_step python --version
+run_step python -m pip install --upgrade pip
+run_step python -m pip install -r requirements.txt
 run_step python -m pip install --use-pep517 -r requirements-official-evaluator.txt
-save_pip_freeze runpod_requirements_official
+save_pip_freeze runpod_requirements_judge
 run_step python -m src.score_sorry_bench_official
 
 echo "" | tee -a "$log_path"

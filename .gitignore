@@ -27,6 +27,7 @@ artifacts/*
 !artifacts/sorry_bench_official_judgments.csv
 !artifacts/sorry_bench_official_summary.csv
 ablation_runs/
+experimental/
 
 
 # Generated binaries and heavyweight model files.
@@ -39,6 +40,18 @@ ablation_runs/
 *.gguf
 *.onnx
 *.pdf
+
+# LaTeX build outputs.
+*.aux
+*.bbl
+*.bcf
+*.blg
+*.fdb_latexmk
+*.fls
+*.out
+*.run.xml
+*.synctex.gz
+*.toc
 
 # Logs and temporary files.
 *.log

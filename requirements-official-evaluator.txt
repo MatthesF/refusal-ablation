@@ -1,5 +1,5 @@
 # Official SORRY-Bench evaluator runtime.
-# Install this on the GPU machine after the base requirements.
+# The RunPod script installs this in .venv-judge, separate from Gemma generation.
 anthropic==0.71.0
 fschat==0.2.36
 shortuuid==1.0.13

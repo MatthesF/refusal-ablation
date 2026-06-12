@@ -61,6 +61,5 @@ SORRY_BENCH_JUDGE_LOCAL_DIR = (
 
 SORRY_BENCH_OFFICIAL_COMMIT = "7da10addffb6790cfeb75281eaffb5a176861653"
 SORRY_BENCH_OFFICIAL_DIR = ROOT / "vendor/sorry_bench_official"
-SORRY_BENCH_OFFICIAL_EXPORT_MANIFEST_PATH = RUN_DIR / "sorry_bench_official_export_manifest.csv"
 SORRY_BENCH_OFFICIAL_JUDGMENTS_PATH = RUN_DIR / "sorry_bench_official_judgments.csv"
 SORRY_BENCH_OFFICIAL_SUMMARY_PATH = RUN_DIR / "sorry_bench_official_summary.csv"

@@ -1,32 +1,32 @@
 \section{Introduction}
 
-Large language models are often aligned to refuse harmful requests while still
-answering benign requests. Refusal ablation is an intervention that attempts to
-remove or weaken this refusal behavior. This makes it a useful case study for
-statistical evaluation because the intervention may create a safety--utility
-trade-off: fewer refusals can improve helpfulness on benign prompts, but can also
-increase compliance with unsafe prompts.
+Instruction-tuned language models are expected to refuse harmful requests while
+remaining useful on ordinary requests. In open-weight models, however, safety
+behavior is not only a property of prompts and decoding: it may also be affected
+by direct interventions on the model weights or activations. Refusal-direction
+ablation is one such intervention. Prior work suggests that refusal behavior can
+be partly represented by a direction in activation space \citep{arditi2024refusal}.
 
-This report evaluates whether a refusal-ablated model behaves differently from
-the untouched model when both are tested on the same prompt set. The focus is
-not on training a new model, but on designing and analyzing a paired model
-evaluation with appropriate metrics and statistical tests.
+This project asks a deliberately narrow empirical question: if we fit a refusal
+direction from a small policy-derived dataset and remove that direction from
+Gemma, how much does official SORRY-Bench refusal behavior change? The goal is
+not to produce a useful model. The goal is to measure, with a reproducible paired
+evaluation, whether a simple edit substantially changes benchmark safety
+behavior.
 
-\subsection{Research Questions}
-
-We consider three research questions:
+The experiment compares two systems on the same 440 SORRY-Bench prompts:
 
 \begin{itemize}
-  \item \textbf{RQ1:} Does refusal ablation reduce refusals on unsafe prompts?
-  \item \textbf{RQ2:} Does refusal ablation reduce false refusals on benign prompts?
-  \item \textbf{RQ3:} Does the ablation effect vary across prompt categories?
+  \item the untouched \texttt{google/gemma-4-E4B-it} model;
+  \item the same model after one fixed refusal-direction weight edit.
 \end{itemize}
 
-\subsection{Contribution}
+Because both systems answer the same prompts, the main analysis is paired. The
+official SORRY-Bench judge gives each answer a binary score: refusal or unsafe
+compliance. We report the size of the compliance-rate change and use McNemar's
+test to check whether the observed prompt-level flips are symmetric
+\citep{mcnemar1947note,raschka2018model}.
 
-The contribution of the report is a statistical comparison of the untouched and
-refusal-ablated model using paired binary response labels. The same prompts are
-evaluated on both models, which allows direct comparison of model behavior at
-the prompt level. Following the model-comparison setting described by
-\citet{raschka2018model}, we use McNemar's test for paired binary outcomes and
-report effect sizes alongside significance tests.
+The main contribution is therefore a compact, reproducible case study of how
+much a single refusal-direction edit changes official SORRY-Bench behavior for
+one Gemma model.

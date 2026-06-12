@@ -5,7 +5,9 @@ def download_snapshot(repo_id, repo_type, revision, local_dir, access_note):
     try:
         from huggingface_hub import snapshot_download
     except ImportError as error:
-        raise RuntimeError("install requirements.txt before downloading Hugging Face assets") from error
+        raise RuntimeError(
+            "install requirements.txt before downloading Hugging Face assets"
+        ) from error
 
     try:
         snapshot_download(

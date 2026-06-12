@@ -1,8 +1,13 @@
 \section{Conclusion}
 
-TODO: Give a concise answer to the research questions. State whether refusal
-ablation significantly changed refusal behavior, whether it reduced false
-refusals on benign prompts, and whether the effect was category-dependent.
+For \texttt{google/gemma-4-E4B-it}, the tested refusal-direction edit causes a
+large change on official SORRY-Bench. Baseline compliance is 21.4\%, while
+edited compliance is 76.6\%. The paired flip pattern is highly asymmetric:
+247 prompts change from refusal to compliance, while only 4 change in the other
+direction.
 
-The final conclusion should distinguish between statistical significance,
-practical effect size, and the limitations of binary refusal labels.
+The cleanest conclusion is narrow but strong: in this setup, one fitted
+refusal-direction edit removes a large part of benchmark-measured refusal
+behavior. The result is statistically clear and practically large, but it should
+be interpreted as a benchmark-specific safety-behavior change rather than a full
+evaluation of model quality or all safety mechanisms.

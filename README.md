@@ -10,16 +10,11 @@ This repository runs one fixed experiment:
 
 ## RunPod Run
 
+From the repo root on the pod:
+
 ```bash
-python -m pip install -r requirements.txt
-
-python -m src.download_assets
-python -m src.fit_direction
-python -m src.run_gemma_sorry_bench
-
-python -m src.download_official_judge
-python -m pip install -r requirements-official-evaluator.txt
-python -m src.score_sorry_bench_official
+export HF_TOKEN=...
+bash scripts/runpod_experiment.sh
 ```
 
 `src.download_assets` requires access to the gated
@@ -31,35 +26,33 @@ Hugging Face requires authentication.
 is needed for scoring only, so missing judge access does not block fitting the
 direction or generating Gemma SORRY-Bench answers.
 
-The official evaluator requirements are installed after Gemma generation so
-vLLM's CUDA/Torch dependencies do not interfere with the base experiment
-environment.
+The RunPod script uses two virtual environments:
 
-The RunPod runner installs the CUDA 12.8 PyTorch wheel explicitly because the
-RTX 5090 pod driver reports CUDA 12.8; using a CUDA 13 wheel makes PyTorch unable
-to see the GPU.
-
-`requirements-official-evaluator.txt` pins the ordinary Python packages. vLLM is
-left platform-resolved because its CPU and CUDA packages resolve differently;
-the RunPod script records the exact installed vLLM version in the final
-`pip freeze` artifact.
-
-## Following A RunPod Run
-
-Create or start the pod from the RunPod console or `runpodctl`, then SSH into
-the pod and run the experiment from the repo root:
-
-```bash
-export HF_TOKEN=...
-bash scripts/runpod_experiment.sh
+```text
+.venv-gemma    Gemma loading, direction fitting, and answer generation
+.venv-judge    official SORRY-Bench vLLM judging
 ```
+
+The split matters because the official evaluator has its own Torch,
+Transformers, and CUDA dependency stack. Keeping it separate prevents the judge
+runtime from changing the Gemma generation runtime.
+
+For the Gemma environment, the RunPod runner installs the CUDA 12.8 PyTorch
+wheel explicitly because the RTX 5090 pod driver reports CUDA 12.8; using a
+CUDA 13 wheel makes PyTorch unable to see the GPU.
+
+`requirements-official-evaluator.txt` pins the official judge runtime used in
+the separate judge environment. The RunPod script records both environments with
+`pip freeze` artifacts.
+
+## Following Progress
 
 The script writes a timestamped log in `artifacts/` and updates:
 
 ```text
 artifacts/runpod_latest.log
-artifacts/runpod_requirements_base_<timestamp>.txt
-artifacts/runpod_requirements_official_<timestamp>.txt
+artifacts/runpod_requirements_gemma_<timestamp>.txt
+artifacts/runpod_requirements_judge_<timestamp>.txt
 ```
 
 If the SSH connection drops, reconnect and continue watching with:
@@ -113,7 +106,6 @@ artifacts/direction_fit_report.csv
 artifacts/category_generalization_table.csv
 artifacts/refusal_directions.npz
 artifacts/sorry_bench_outputs.csv
-artifacts/sorry_bench_official_export_manifest.csv
 artifacts/sorry_bench_official_judgments.csv
 artifacts/sorry_bench_official_summary.csv
 ```

@@ -37,13 +37,6 @@ def test_last_non_padding_indices_handles_left_and_right_padding():
     assert indices.tolist() == [3, 2]
 
 
-def test_trim_generated_token_ids_stops_after_first_eos():
-    assert gemma.trim_generated_token_ids(
-        [11, 12, 2, 0, 0],
-        eos_token_id=2,
-    ) == [11, 12, 2]
-
-
 def test_refusal_directions_rejects_degenerate_activation_means():
     activations = np.zeros((2, 1, 3), dtype=np.float32)
     labels = np.array(["safe", "unsafe"])
@@ -74,7 +67,10 @@ def test_remove_direction_preserves_column_norms():
     ])
     edited = gemma.remove_direction(weight, torch.tensor([1.0, 0.0, 0.0]))
 
-    assert torch.allclose(torch.linalg.vector_norm(edited, dim=0), torch.linalg.vector_norm(weight, dim=0))
+    assert torch.allclose(
+        torch.linalg.vector_norm(edited, dim=0),
+        torch.linalg.vector_norm(weight, dim=0),
+    )
     assert torch.allclose(edited[0], torch.zeros(3))
 
 

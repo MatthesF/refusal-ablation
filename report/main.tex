@@ -10,25 +10,19 @@
 \usepackage{amsfonts}
 \usepackage{graphicx}
 \usepackage{natbib}
-\usepackage{doi}
 
 \title{Statistical Evaluation of Refusal Ablation in a Large Language Model}
 
 \author{
-  Author One \\
-  Technical University of Denmark \\
-  \texttt{s000000@student.dtu.dk}
-  \And
-  Author Two \\
-  Technical University of Denmark \\
-  \texttt{s000000@student.dtu.dk}
+  Matthes Fogtmann \\
+  Technical University of Denmark
 }
 
 \renewcommand{\shorttitle}{Refusal Ablation Evaluation}
 
 \hypersetup{
   pdftitle={Statistical Evaluation of Refusal Ablation in a Large Language Model},
-  pdfauthor={TODO},
+  pdfauthor={Matthes Fogtmann},
   pdfkeywords={large language models, refusal ablation, safety evaluation, McNemar test}
 }
 
@@ -36,8 +30,21 @@
 \maketitle
 
 \begin{abstract}
-  TODO: Summarize the evaluation question, paired dataset, binary refusal labels,
-  main statistical test, key result, and interpretation in 150--200 words.
+  This report evaluates a single refusal-direction ablation on
+  \texttt{google/gemma-4-E4B-it}. A direction is fit from a local
+  policy-derived dataset of 480 safe and unsafe prompts, then removed from the
+  model weights. The untouched and edited model are evaluated on the same 440
+  SORRY-Bench prompts and scored with the pinned official SORRY-Bench Mistral
+  judge. The judge assigns 0 to refusal and 1 to unsafe compliance. The
+  baseline model complied with 94 of 440 prompts (21.4\%), while the edited
+  model complied with 337 of 440 prompts (76.6\%). In the paired comparison,
+  247 prompts changed from baseline refusal to edited compliance, while 4
+  changed in the opposite direction. An exact McNemar/binomial test gives
+  $p=4.53\cdot10^{-68}$, with an estimated compliance increase of 55.2
+  percentage points. The result shows that this edit greatly weakens refusal
+  behavior on the official benchmark. The analysis is intentionally narrow: it
+  measures benchmark refusal behavior, not general model quality or robust
+  safety under further interventions.
 \end{abstract}
 
 \keywords{large language models \and refusal ablation \and safety evaluation \and paired model comparison}

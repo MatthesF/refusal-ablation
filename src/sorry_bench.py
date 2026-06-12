@@ -16,7 +16,6 @@ from settings import (
     SORRY_BENCH_JUDGE_MODEL_NAME,
     SORRY_BENCH_OFFICIAL_COMMIT,
     SORRY_BENCH_OFFICIAL_DIR,
-    SORRY_BENCH_OFFICIAL_EXPORT_MANIFEST_PATH,
     SORRY_BENCH_OFFICIAL_JUDGE_PROMPT_NAME,
     SORRY_BENCH_OFFICIAL_JUDGMENTS_PATH,
     SORRY_BENCH_OFFICIAL_SUMMARY_PATH,
@@ -82,7 +81,9 @@ def normalize_question(record, line_number):
     required = {"question_id", "category", "turns"}
     missing = required - set(record)
     if missing:
-        raise ValueError(f"SORRY-Bench row {line_number} is missing fields: {', '.join(sorted(missing))}")
+        raise ValueError(
+            f"SORRY-Bench row {line_number} is missing fields: {', '.join(sorted(missing))}"
+        )
 
     turns = record["turns"]
     if not isinstance(turns, list) or len(turns) != 1 or not isinstance(turns[0], str):
@@ -106,7 +107,13 @@ def normalize_question(record, line_number):
 
 def download_official_evaluator():
     for relative_path, expected_hash in OFFICIAL_FILE_HASHES.items():
-        data = download_official_file(relative_path)
+        url = (
+            "https://raw.githubusercontent.com/SORRY-Bench/sorry-bench/"
+            f"{SORRY_BENCH_OFFICIAL_COMMIT}/{relative_path}"
+        )
+        with urllib.request.urlopen(url) as response:
+            data = response.read()
+
         actual_hash = hashlib.sha256(data).hexdigest()
         if actual_hash != expected_hash:
             raise RuntimeError(
@@ -121,15 +128,6 @@ def download_official_evaluator():
         SORRY_BENCH_OFFICIAL_COMMIT + "\n",
         encoding="utf-8",
     )
-
-
-def download_official_file(relative_path):
-    url = (
-        "https://raw.githubusercontent.com/SORRY-Bench/sorry-bench/"
-        f"{SORRY_BENCH_OFFICIAL_COMMIT}/{relative_path}"
-    )
-    with urllib.request.urlopen(url) as response:
-        return response.read()
 
 
 def require_official_evaluator():
@@ -173,16 +171,31 @@ def export_official_answers():
     if rows.empty:
         raise ValueError(f"no SORRY-Bench outputs found for current run_id: {run_id}")
 
+    expected_question_ids = set(load_questions()["question_id"])
     manifest_rows = []
     for condition, model_id in [("baseline", BASELINE_MODEL_ID), ("edited", EDITED_MODEL_ID)]:
         # The official judge reads one JSONL answer file per model id.
         condition_rows = rows.loc[rows["condition"] == condition].sort_values("question_id")
         if condition_rows.empty:
             raise ValueError(f"missing SORRY-Bench outputs for condition: {condition}")
-        if condition_rows["question_id"].duplicated().any():
-            raise ValueError(f"duplicate SORRY-Bench outputs for condition: {condition}")
 
-        answer_path = official_answer_dir() / f"{model_id}.jsonl"
+        duplicated = condition_rows.loc[
+            condition_rows["question_id"].duplicated(),
+            "question_id",
+        ].tolist()
+        if duplicated:
+            raise ValueError(f"duplicate SORRY-Bench outputs for {condition}: {duplicated[:10]}")
+
+        actual_question_ids = set(condition_rows["question_id"])
+        missing = sorted(expected_question_ids - actual_question_ids)
+        extra = sorted(actual_question_ids - expected_question_ids)
+        if missing or extra:
+            raise ValueError(
+                f"incomplete SORRY-Bench outputs for {condition}: "
+                f"missing={missing[:10]}, extra={extra[:10]}"
+            )
+
+        answer_path = SORRY_BENCH_DIR / "model_answer" / f"{model_id}.jsonl"
         answer_path.parent.mkdir(parents=True, exist_ok=True)
         records = [
             official_answer_record(row, model_id)
@@ -200,10 +213,7 @@ def export_official_answers():
             "rows": len(records),
         })
 
-    manifest = pd.DataFrame(manifest_rows)
-    SORRY_BENCH_OFFICIAL_EXPORT_MANIFEST_PATH.parent.mkdir(parents=True, exist_ok=True)
-    manifest.to_csv(SORRY_BENCH_OFFICIAL_EXPORT_MANIFEST_PATH, index=False)
-    return manifest
+    return pd.DataFrame(manifest_rows)
 
 
 def official_answer_record(row, model_id):
@@ -219,20 +229,12 @@ def official_answer_record(row, model_id):
     }
 
 
-def official_answer_dir():
-    return SORRY_BENCH_DIR / "model_answer"
-
-
-def official_judgment_path():
-    return SORRY_BENCH_DIR / "model_judgment" / OFFICIAL_JUDGE_FILENAME
-
-
 def run_official_judge(manifest):
     prompt = official_judge_prompt()
     require_official_judge_model()
     require_official_runtime()
 
-    judgment_path = official_judgment_path()
+    judgment_path = SORRY_BENCH_DIR / "model_judgment" / OFFICIAL_JUDGE_FILENAME
     if judgment_path.exists():
         # The upstream script appends to its judgment file; remove the old one so
         # each score step imports exactly this run's judgments.
@@ -280,12 +282,13 @@ def require_official_runtime():
 
 
 def import_official_judgments(manifest):
-    path = official_judgment_path()
+    path = SORRY_BENCH_DIR / "model_judgment" / OFFICIAL_JUDGE_FILENAME
     if not path.exists():
         raise FileNotFoundError(f"official SORRY-Bench judgment file is missing: {path}")
 
     model_to_condition = dict(zip(manifest["model_id"], manifest["condition"]))
     questions = load_questions()
+    expected_question_ids = set(questions["question_id"])
     categories = dict(zip(questions["question_id"], questions["category"]))
     rows = []
 
@@ -297,13 +300,20 @@ def import_official_judgments(manifest):
             if record["model"] not in model_to_condition:
                 continue
 
-            score = int(float(record["score"]))
-            if score not in {0, 1}:
-                raise ValueError(f"official SORRY-Bench score is outside {{0, 1}}: {score}")
+            raw_score = float(record["score"])
+            if raw_score not in {0.0, 1.0}:
+                raise ValueError(
+                    f"official SORRY-Bench score is outside {{0, 1}}: {record['score']}"
+                )
+            score = int(raw_score)
             if "tstamp" not in record:
                 raise ValueError("official SORRY-Bench judgment is missing tstamp")
 
             question_id = int(record["question_id"])
+            if question_id not in categories:
+                raise ValueError(
+                    f"official SORRY-Bench judgment has unknown question_id: {question_id}"
+                )
             rows.append({
                 "run_id": manifest["run_id"].iloc[0],
                 "question_id": question_id,
@@ -319,7 +329,9 @@ def import_official_judgments(manifest):
             })
 
     if not rows:
-        raise ValueError("no official SORRY-Bench judgments matched Gemma baseline or edited outputs")
+        raise ValueError(
+            "no official SORRY-Bench judgments matched Gemma baseline or edited outputs"
+        )
 
     judgments = pd.DataFrame(rows)
     # If a scorer was interrupted and restarted, keep the newest judgment for
@@ -331,6 +343,17 @@ def import_official_judgments(manifest):
     judgments = judgments.drop(columns=["official_tstamp"]).sort_values(
         ["condition", "question_id"]
     )
+    for condition in manifest["condition"].tolist():
+        condition_rows = judgments.loc[judgments["condition"] == condition]
+        actual_question_ids = set(condition_rows["question_id"])
+        missing = sorted(expected_question_ids - actual_question_ids)
+        extra = sorted(actual_question_ids - expected_question_ids)
+        if missing or extra:
+            raise ValueError(
+                f"incomplete official SORRY-Bench judgments for {condition}: "
+                f"missing={missing[:10]}, extra={extra[:10]}"
+            )
+
     SORRY_BENCH_OFFICIAL_JUDGMENTS_PATH.parent.mkdir(parents=True, exist_ok=True)
     judgments.to_csv(SORRY_BENCH_OFFICIAL_JUDGMENTS_PATH, index=False)
 

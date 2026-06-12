@@ -46,8 +46,25 @@ def main():
     construction_activations = activations[construction_mask]
     construction_labels = labels[construction_mask]
 
-    final_budget_row = final_construction_budget_row(generalization)
-    report = fit_report(construction_labels, final_budget_row)
+    final_budget_rows = generalization.loc[
+        generalization["used_policy_areas"] == CONSTRUCTION_POLICY_AREAS
+    ]
+    if final_budget_rows.empty:
+        raise ValueError(
+            "category generalization table must include the final construction policy-area count"
+        )
+    final_budget_row = final_budget_rows.iloc[0]
+    report = {
+        "split_style": DIRECTION_SPLIT_STYLE,
+        "construction_prompts": len(construction_labels),
+        "construction_safe_prompts": int(np.sum(construction_labels == "safe")),
+        "construction_unsafe_prompts": int(np.sum(construction_labels == "unsafe")),
+        "construction_policy_areas": CONSTRUCTION_POLICY_AREAS,
+        "category_generalization_repeats": CATEGORY_GENERALIZATION_REPEATS,
+        "category_generalization_reference": CATEGORY_GENERALIZATION_REFERENCE,
+        "median_layer_cosine_to_heldout": float(final_budget_row["median_layer_cosine_to_heldout"]),
+        "p10_layer_cosine_to_heldout": float(final_budget_row["p10_layer_cosine_to_heldout"]),
+    }
     pd.DataFrame([report]).to_csv(FIT_REPORT_PATH, index=False)
 
     # One final direction per layer, fit only from the no-leakage construction areas.
@@ -82,7 +99,16 @@ def load_or_make_activations(rows):
     if POLICY_ACTIVATIONS_PATH.exists():
         with np.load(POLICY_ACTIVATIONS_PATH, allow_pickle=False) as cached:
             # Cached activations are valid only for the exact same prompt rows.
-            if cache_matches(cached, prompt_ids, prompts, labels, categories):
+            expected_cache_files = {"activations", "prompt_ids", "prompts", "labels", "categories"}
+            cache_has_metadata = expected_cache_files.issubset(cached.files)
+            cache_matches_rows = (
+                cache_has_metadata
+                and cached["prompt_ids"].tolist() == prompt_ids.tolist()
+                and cached["prompts"].astype(str).tolist() == prompts
+                and cached["labels"].astype(str).tolist() == labels
+                and cached["categories"].astype(str).tolist() == categories
+            )
+            if cache_matches_rows:
                 print(f"using cached activations: {POLICY_ACTIVATIONS_PATH}", flush=True)
                 return cached["activations"]
         print("cached activations do not match the current prompts; rebuilding", flush=True)
@@ -116,36 +142,20 @@ def load_or_make_activations(rows):
     return activations
 
 
-def cache_matches(cached, prompt_ids, prompts, labels, categories):
-    expected = {"activations", "prompt_ids", "prompts", "labels", "categories"}
-    if not expected.issubset(cached.files):
-        return False
-
-    return (
-        cached["prompt_ids"].tolist() == prompt_ids.tolist()
-        and cached["prompts"].astype(str).tolist() == prompts
-        and cached["labels"].astype(str).tolist() == labels
-        and cached["categories"].astype(str).tolist() == categories
-    )
-
-
-def fit_report(construction_labels, generalization_row):
-    return {
-        "split_style": DIRECTION_SPLIT_STYLE,
-        "construction_prompts": len(construction_labels),
-        "construction_safe_prompts": int(np.sum(construction_labels == "safe")),
-        "construction_unsafe_prompts": int(np.sum(construction_labels == "unsafe")),
-        "construction_policy_areas": CONSTRUCTION_POLICY_AREAS,
-        "category_generalization_repeats": CATEGORY_GENERALIZATION_REPEATS,
-        "category_generalization_reference": CATEGORY_GENERALIZATION_REFERENCE,
-        "median_layer_cosine_to_heldout": float(generalization_row["median_layer_cosine_to_heldout"]),
-        "p10_layer_cosine_to_heldout": float(generalization_row["p10_layer_cosine_to_heldout"]),
-    }
-
-
 def category_generalization_table(activations, labels, categories):
     policy_areas = np.array(sorted(set(categories)))
-    validate_category_budgets(policy_areas)
+    policy_area_count = len(policy_areas)
+    bad_budgets = [
+        used_policy_areas
+        for used_policy_areas in CATEGORY_GENERALIZATION_POLICY_AREAS
+        if used_policy_areas <= 0 or used_policy_areas >= policy_area_count
+    ]
+    if bad_budgets:
+        raise ValueError(
+            "category generalization budgets must be between "
+            f"1 and {policy_area_count - 1}: {bad_budgets}"
+        )
+
     rng = np.random.default_rng(RANDOM_SEED)
     rows = []
 
@@ -157,22 +167,17 @@ def category_generalization_table(activations, labels, categories):
         for _ in range(CATEGORY_GENERALIZATION_REPEATS):
             used_categories = rng.choice(policy_areas, size=used_policy_areas, replace=False)
             held_out_categories = np.setdiff1d(policy_areas, used_categories)
-            used_direction, used_prompt_count = direction_for_policy_areas(
-                activations,
-                labels,
-                categories,
-                used_categories,
-            )
-            held_out_direction, held_out_prompt_count = direction_for_policy_areas(
-                activations,
-                labels,
-                categories,
-                held_out_categories,
+            used_mask = np.isin(categories, used_categories)
+            held_out_mask = np.isin(categories, held_out_categories)
+            used_direction = refusal_directions(activations[used_mask], labels[used_mask])
+            held_out_direction = refusal_directions(
+                activations[held_out_mask],
+                labels[held_out_mask],
             )
 
-            split_cosines.append(layer_cosines(used_direction, held_out_direction))
-            used_prompt_counts.append(used_prompt_count)
-            held_out_prompt_counts.append(held_out_prompt_count)
+            split_cosines.append(np.sum(used_direction * held_out_direction, axis=1))
+            used_prompt_counts.append(int(np.sum(used_mask)))
+            held_out_prompt_counts.append(int(np.sum(held_out_mask)))
 
         split_cosines = np.concatenate(split_cosines)
 
@@ -190,33 +195,6 @@ def category_generalization_table(activations, labels, categories):
         })
 
     return pd.DataFrame(rows)
-
-
-def validate_category_budgets(policy_areas):
-    policy_area_count = len(policy_areas)
-    bad = [
-        used_policy_areas
-        for used_policy_areas in CATEGORY_GENERALIZATION_POLICY_AREAS
-        if used_policy_areas <= 0 or used_policy_areas >= policy_area_count
-    ]
-    if bad:
-        raise ValueError(f"category generalization budgets must be between 1 and {policy_area_count - 1}: {bad}")
-
-
-def final_construction_budget_row(generalization):
-    rows = generalization.loc[generalization["used_policy_areas"] == CONSTRUCTION_POLICY_AREAS]
-    if rows.empty:
-        raise ValueError("category generalization table must include the final construction policy-area count")
-    return rows.iloc[0]
-
-
-def direction_for_policy_areas(activations, labels, categories, policy_areas):
-    mask = np.isin(categories, policy_areas)
-    return refusal_directions(activations[mask], labels[mask]), int(np.sum(mask))
-
-
-def layer_cosines(first, second):
-    return np.sum(first * second, axis=1)
 
 
 if __name__ == "__main__":
