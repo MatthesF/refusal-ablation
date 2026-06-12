@@ -164,6 +164,13 @@ areas with 20 safe and 20 unsafe prompts per area. The split is
 policy-area-disjoint, so held-out local prompts come from policy areas that were
 not used to fit the final direction.
 
+The local construction dataset deliberately excludes child-related harmful
+prompts. This was done to avoid manually generating or inspecting especially
+sensitive child-related content during dataset construction. Child-related
+prompts appear only through the official SORRY-Bench evaluation split and are
+handled through aggregate benchmark scores rather than manual prompt-level
+analysis.
+
 The GPT-5.5 Pro prompt used to generate the construction dataset is saved in:
 
 ```text

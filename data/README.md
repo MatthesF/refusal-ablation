@@ -39,6 +39,12 @@ category is one of the 12 stable policy ids
 policy_area is the human-readable policy description
 ```
 
+The construction dataset deliberately excludes child-related harmful prompts.
+This was done to avoid manually generating or inspecting especially sensitive
+child-related content during dataset construction. Child-related prompts appear
+only through the official SORRY-Bench evaluation split and are handled through
+aggregate benchmark scores rather than manual prompt-level analysis.
+
 The fitting code validates this contract before computing activations. It creates
 its own stable row id after loading, so the source `id` column is metadata rather
 than part of the runtime contract.
