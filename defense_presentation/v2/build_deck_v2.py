@@ -214,7 +214,7 @@ def footer(slide, num, dark=False, tag=None):
         left = tag
     txt(slide, 0.62, SH - 0.42, 9.5, 0.3,
         [[(left, {"size": 9.5, "color": c, "bold": True}),
-          ("   ·   02445 · Video pitch (5–7 min) · DTU", {"size": 9.5, "color": c})]])
+          ("   ·   02445 · DTU", {"size": 9.5, "color": c})]])
     txt(slide, SW - 1.4, SH - 0.42, 0.8, 0.3,
         [[(num, {"size": 9.5, "color": c, "bold": True})]], align=PP_ALIGN.RIGHT)
 
