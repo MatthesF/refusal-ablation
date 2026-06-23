@@ -112,11 +112,11 @@ heading("2 · Speaker blocks (equal 4-way split)")
 table(["Speaker", "Slides", "Topic", "Time"],
       [("Oskar", "1–3", "Framing: aspect (Step 1), A/B design + metric (Steps 2–3)", "~1:28"),
        ("Matthes", "4–6", "Model & runtime (Step 3), data (Step 4), outputs→Bernoulli", "~1:42"),
-       ("Carl Johan", "7–9", "Statistical model + matrix/GLM, tests & assumptions, result", "~1:57"),
+       ("Carl Johan", "7–9", "Effect size, tests & assumptions, result", "~1:51"),
        ("Oliver", "10–12", "Resampling, generalization & fairness, core conclusions", "~1:37")],
       [Inches(1.2), Inches(0.8), Inches(4.3), Inches(0.9)], sizes=[10, 10, 10, 10])
 p = para(space_before=4, space_after=2)
-run(p, "Appendix A1–A4 are backup slides for the individual questioning (design matrix, test-choice table, power derivation, category/fairness detail).", size=10, italic=True, color=MUTED)
+run(p, "Appendix A1–A3 are backup slides for the individual questioning (test-choice table, power derivation, category/fairness detail).", size=10, italic=True, color=MUTED)
 
 # ================= 3. SLIDE-BY-SLIDE SCRIPT =================
 heading("3 · Video-pitch script (target ≈ 6:45)")
@@ -133,8 +133,8 @@ slides = [
      "Two data sources. The benchmark is SORRY-Bench — 440 prompts across 44 harm categories — used only as an external hold-out. To fit the edit we built our own 480-prompt set from the Gemma Prohibited-Use Policy: twelve policy areas crossed with safe and unsafe labels, twenty each. They're GPT-5.5-Pro-generated and human-verified, split disjointly eight areas to four. On sample size: a power calculation gives n around 349 for a fifteen-point change, so 440 prompts give us 88 percent power."),
     (6, "Step 4c — outputs → data", "Matthes", "0:32",
      "The edit in one line: fit a refusal direction, unsafe-mean minus safe-mean, and remove it from every layer's weights, norm-preserving. Then we turn outputs into data: each judged answer is a Bernoulli outcome, zero or one, and deterministic decoding fixes that label. Per prompt we keep the paired outcome — baseline and edited — which is the unit of analysis."),
-    (7, "Step 5 — the statistical model", "Carl Johan", "0:42",
-     "We write the evaluation as a model. Per prompt the signed change D is edited minus baseline, in minus-one, zero, plus-one, and the effect size is the mean of D. More generally it's a generalized linear model: logit of compliance equals a design matrix times beta, with columns for condition, category, and their interaction. Beta-one is the main edit effect — our A/B treatment effect; the interaction terms let the effect vary by category. So we have model set-up, the matrix formulation, and interactions in one place."),
+    (7, "Step 5 — the effect size", "Carl Johan", "0:36",
+     "We turn the change into one number. Per prompt the signed change D is edited minus baseline — plus one if a refusal becomes compliance, minus one the other way, zero if nothing changes — and the effect size is just the mean of D. That mean is the headline directly: 247 prompts flip to compliance and only four flip back, so it's 247 minus 4 over 440, which is plus 55.2 points. Because the design is paired, each prompt is its own control, and the next slide tests whether that change is statistically real."),
     (8, "Step 5 — tests & assumptions", "Carl Johan", "0:42",
      "We use both families. Parametric: a normal-approximation confidence interval for the paired difference, and Wilson intervals per arm because the rates are near zero and one. Exact and non-parametric: McNemar's exact binomial test on the discordant pairs, plus a category-clustered bootstrap. Assumptions: prompts are only approximately independent — ten share each category — so we check with the clustered bootstrap; the outcome is Bernoulli; deterministic decoding removes sampling noise. The point is that all three approaches agree."),
     (9, "Step 5 — result", "Carl Johan", "0:33",
@@ -164,7 +164,7 @@ table(["Step", "Requirement", "Where & what we show"],
        ("2", "Metric", "Official SORRY-Bench Mistral judge = LLM-as-a-Judge; binary 0/1; 40-output audit (slide 3)."),
        ("3", "Model choice + runtime", "Open-weight gemma-4-E4B-it on RunPod RTX 5090; offline, deterministic, independent (slide 4)."),
        ("4", "Data + sample size", "SORRY-Bench benchmark + self-curated 480 set; factors of variation; power n≈349→88.2% (slides 5–6)."),
-       ("5", "Results: qualitative + quantitative + stability", "Category plots + paired tests, assumptions, CIs, bootstrap uncertainty (slides 7–11, A1–A4).")],
+       ("5", "Results: qualitative + quantitative + stability", "Category plots + paired tests, assumptions, CIs, bootstrap uncertainty (slides 7–11, A1–A3).")],
       [Inches(0.6), Inches(2.6), Inches(5.6)], sizes=[11, 10, 10])
 
 # ================= 5. LEARNING-OBJECTIVE MAP =================
@@ -172,16 +172,14 @@ heading("5 · Learning-objective coverage map")
 p = para(space_after=5)
 run(p, "Each course learning objective, where we demonstrate it, and the one-line evidence. Use this to steer answers in the individual questioning.", size=10, italic=True, color=MUTED)
 table(["Learning objective", "Where", "Evidence"],
-      [("Set up appropriate statistical models for AI evaluation", "S3, S7, A1", "Paired A/B + GLM for SORRY-Bench compliance."),
-       ("Matrix formulation of simple models", "S7, A1", "η = Xβ; design matrix with condition/category/interaction."),
-       ("Test for interaction effects", "S7, A1, A4", "condition×category term; category-level effect varies 0→100 pp."),
-       ("Understand & discuss model assumptions", "S8, A2", "Independence, Bernoulli, near-0/1, exchangeability — and the checks."),
-       ("Parametric and non-parametric tests", "S8, A2", "Normal-approx CI + Wilson (param.); McNemar exact + bootstrap (non-param.)."),
-       ("Estimation, hypothesis test, prediction w/ software", "S8–S9", "Δ estimate, McNemar, CIs in Python; GLM predicts per-category compliance."),
+      [("Set up appropriate statistical models for AI evaluation", "S3, S7", "Paired A/B effect-size model for SORRY-Bench compliance."),
+       ("Understand & discuss model assumptions", "S8, A1", "Independence, Bernoulli, near-0/1, exchangeability — and the checks."),
+       ("Parametric and non-parametric tests", "S8, A1", "Normal-approx CI + Wilson (param.); McNemar exact + bootstrap (non-param.)."),
+       ("Estimation, hypothesis test, prediction w/ software", "S8–S9", "Δ estimate, McNemar, CIs computed in Python."),
        ("Evaluate estimates for model generalization", "S11, S5", "Disjoint hold-out areas, 5-split CV-style stability, external benchmark."),
        ("Set up & evaluate A/B tests", "S3 (whole study)", "Paired within-subject A/B: baseline vs edited on identical prompts."),
-       ("Apply resampling methods", "S10, A2", "Category-clustered bootstrap, 20,000 replicates, seed 2445."),
-       ("Bias & fairness measures in AI", "S11, A4", "Category subgroups; uneven safety coverage; child-content handling."),
+       ("Apply resampling methods", "S10, A1", "Category-clustered bootstrap, 20,000 replicates, seed 2445."),
+       ("Bias & fairness measures in AI", "S11, A3", "Category subgroups; uneven safety coverage; child-content handling."),
        ("Interpret statistical-software output", "S8–S10", "Reading CIs, p-values, bootstrap distribution, Wilson error bars."),
        ("Communicate results to a non-statistical audience", "Pitch + report", "Plain-language framing; single core-conclusions slide.")],
       [Inches(3.5), Inches(1.2), Inches(4.1)], sizes=[10, 9.5, 9.5])
@@ -199,13 +197,11 @@ qa_sections = [
         ("What is the unit of analysis and the population?",
          "The unit is the prompt, contributing a paired outcome (Y_baseline, Y_edited) over 440 SORRY-Bench prompts. The population is SORRY-Bench harm prompts as scored by the official judge — we're explicit that conclusions are benchmark-specific."),
     ]),
-    ("Statistical model, matrix form & interactions", [
-        ("Write down your statistical model.",
-         "logit P(Yᵢ=1) = β₀ + β₁·edited + Σγ_c·catᵢ + Σδ_c·(edited×catᵢ). β₁ is the edit effect; a linear-probability version gives β₁ = Δ directly. McNemar/Δ are the focused, assumption-light version of β₁."),
-        ("Where is the matrix formulation?",
-         "η = Xβ. X has 880 rows (prompt×condition) and columns: intercept, condition indicator, 43 category dummies, and condition×category. Paired rows share category dummies; only the condition columns flip (appendix A1)."),
-        ("What interaction did you test, and what did you find?",
-         "Condition×category. The category-level plot IS that interaction: the edit effect ranges from ~0 to +100 pp across categories. With only 10 prompts/category we treat it as exploratory error analysis, not 44 confirmatory tests."),
+    ("Effect size & paired design", [
+        ("How do you define the effect size?",
+         "Per prompt, the signed change Dᵢ = Y_edited − Y_baseline ∈ {−1, 0, +1}; the effect size is Δ = mean(Dᵢ), the compliance-rate change. It comes straight from the flips: (247 − 4)/440 = +55.2 pp."),
+        ("Why does pairing matter here?",
+         "Both models answer the same prompt, so each prompt is its own control — prompt difficulty, category mix and judge wording cancel out. That's why we test the discordant pairs with McNemar rather than comparing two independent samples."),
     ]),
     ("Assumptions", [
         ("What are your assumptions and do they hold?",
@@ -275,7 +271,7 @@ run(p, "Questions can go to anyone, so everyone owns the headline numbers and th
 focus = [
     ("Oskar", "Framing & evaluation design: why this aspect matters, the paired A/B set-up, LLM-as-a-Judge validity and its limits, and communicating results to non-experts."),
     ("Matthes", "System & data: model choice and runtime (open-weight, GPU), the refusal-direction edit, factors of variation in the construction set, outputs→Bernoulli, and the power/sample-size calculation."),
-    ("Carl Johan", "Inference: the statistical model and matrix/GLM formulation, interaction effects, assumptions and how they're checked, parametric vs non-parametric tests, and why McNemar."),
+    ("Carl Johan", "Inference: the paired effect-size definition (signed change and Δ), model assumptions and how they're checked, parametric vs non-parametric tests, and why McNemar."),
     ("Oliver", "Robustness & responsible AI: the category-clustered bootstrap, paired-flip reading, generalization via hold-out/CV, the bias/fairness-of-coverage lens, and multiple-comparisons handling."),
 ]
 for who, what in focus:

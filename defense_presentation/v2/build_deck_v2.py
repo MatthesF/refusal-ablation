@@ -447,50 +447,44 @@ bullets(s, 0.95, 5.22, 11.5, 1.2, [
 footer(s, "06")
 
 # =====================================================================
-# 7 — STATISTICAL MODEL  (Carl Johan)
+# 7 — EFFECT SIZE  (Carl Johan)
 # =====================================================================
 s = add_slide()
-title_block(s, "RUBRIC STEP 5b · THE MODEL", "The evaluation written as a statistical model", tw=10.5)
+title_block(s, "RUBRIC STEP 5 · EFFECT SIZE", "One signed change per prompt", tw=10.5)
 speaker_pill(s, "Carl Johan")
 
-# left: paired effect
-rect(s, 0.62, 2.0, 5.8, 2.0, CARD, rounded=True, radius=0.05, line=CARDLINE, line_w=1.0)
-txt(s, 0.92, 2.18, 5.3, 0.35, [[("Paired effect size", {"size": 15, "bold": True, "color": NAVY})]])
-txt(s, 0.92, 2.62, 5.4, 0.5,
-    [[("Dᵢ = Y", {"size": 16, "color": INK, "font": "Cambria"}),
-      ("edited", {"size": 11, "color": INK, "font": "Cambria"}),
-      (" − Y", {"size": 16, "color": INK, "font": "Cambria"}),
-      ("baseline", {"size": 11, "color": INK, "font": "Cambria"}),
-      ("  ∈ {−1, 0, +1}", {"size": 16, "bold": True, "color": ORANGE_DK, "font": "Cambria"})]])
-txt(s, 0.92, 3.22, 5.4, 0.6,
-    [[("Δ = mean(Dᵢ)", {"size": 16, "bold": True, "color": NAVY, "font": "Cambria"}),
-      ("   — the compliance-rate change", {"size": 12.5, "color": MUTED})]])
+# signed-change explainer
+rect(s, 0.62, 2.0, 7.3, 2.55, CARD, rounded=True, radius=0.05, line=CARDLINE, line_w=1.0)
+txt(s, 0.92, 2.2, 6.8, 0.4,
+    [[("Each prompt → a signed change   Dᵢ = Y", {"size": 14.5, "bold": True, "color": NAVY}),
+      ("edited", {"size": 10.5, "bold": True, "color": NAVY}),
+      (" − Y", {"size": 14.5, "bold": True, "color": NAVY}),
+      ("baseline", {"size": 10.5, "bold": True, "color": NAVY})]])
+sc = [("+1", "refusal → compliance", ORANGE), ("0", "no change", MUTED), ("−1", "compliance → refusal", NAVY)]
+cw2 = 2.16
+for i, (v, lab, c) in enumerate(sc):
+    xx = 0.92 + i * (cw2 + 0.14)
+    rect(s, xx, 2.72, cw2, 1.2, WHITE, rounded=True, radius=0.08, line=c, line_w=1.5)
+    txt(s, xx, 2.9, cw2, 0.5, [[(v, {"size": 27, "bold": True, "color": c, "font": TITLE_FONT})]], align=PP_ALIGN.CENTER)
+    txt(s, xx + 0.08, 3.48, cw2 - 0.16, 0.4, [[(lab, {"size": 10.5, "color": INK})]], align=PP_ALIGN.CENTER, line_spacing=0.95)
+txt(s, 0.92, 4.08, 6.9, 0.4,
+    [[("Effect size   Δ = mean(Dᵢ)", {"size": 14.5, "bold": True, "italic": True, "color": INK, "font": "Cambria"}),
+      ("  — the compliance-rate change.", {"size": 12.5, "italic": True, "color": MUTED})]])
 
-# right: GLM / matrix lens
-rect(s, 6.6, 2.0, 6.12, 2.0, NAVY, rounded=True, radius=0.05, shadow=True)
-txt(s, 6.9, 2.18, 5.5, 0.35, [[("Generalized-linear / matrix lens", {"size": 15, "bold": True, "color": ORANGE})]])
-txt(s, 6.9, 2.62, 5.6, 0.9,
-    [[("logit P(Yᵢ=1) = β₀ + β₁·edited", {"size": 14.5, "bold": True, "color": WHITE, "font": "Cambria"})],
-     [("                       + Σ γ_c·catᵢ + Σ δ_c·(edited×catᵢ)", {"size": 13, "color": ICE, "font": "Cambria"})]],
-    line_spacing=1.15)
-txt(s, 6.9, 3.5, 5.6, 0.45,
-    [[("η = Xβ", {"size": 13.5, "italic": True, "bold": True, "color": WHITE, "font": "Cambria"}),
-      ("  — design matrix X holds condition, category and their interaction.", {"size": 11.5, "color": ICE})]], line_spacing=1.0)
+# right: the arithmetic, straight from the flips
+rect(s, 8.15, 2.0, 4.57, 2.55, NAVY, rounded=True, radius=0.05, shadow=True)
+txt(s, 8.45, 2.22, 4.0, 0.32, [[("STRAIGHT FROM THE FLIPS", {"size": 10.5, "bold": True, "color": ORANGE, "spacing": 1.6})]])
+txt(s, 8.45, 2.68, 4.0, 0.55, [[("Δ = (247 − 4) / 440", {"size": 18, "bold": True, "color": WHITE, "font": "Cambria"})]])
+txt(s, 8.45, 3.24, 4.0, 0.55, [[("   = +55.2 pp", {"size": 23, "bold": True, "color": ORANGE, "font": "Cambria"})]])
+txt(s, 8.45, 3.96, 4.05, 0.55, [[("247 prompts flip to compliance, only 4 the other way.", {"size": 11.5, "color": ICE})]], line_spacing=1.05)
 
-# bottom: what each term demonstrates
-items = [("β₁", "Main edit effect", "the A/B treatment effect"),
-         ("δ_c", "Interaction", "does the edit's effect differ by category?"),
-         ("X", "Matrix formulation", "simple model in design-matrix form")]
-iy = 4.35
-iw = 3.93
-for i, (sym, head, body) in enumerate(items):
-    x = 0.62 + i * (iw + 0.18)
-    rect(s, x, iy, iw, 1.75, CARD, rounded=True, radius=0.06, line=CARDLINE, line_w=1.0)
-    rect(s, x + 0.28, iy + 0.3, 0.95, 0.7, NAVY_DEEP, rounded=True, radius=0.12)
-    txt(s, x + 0.28, iy + 0.3, 0.95, 0.7, [[(sym, {"size": 22, "bold": True, "color": ORANGE, "font": "Cambria"})]], align=PP_ALIGN.CENTER, anchor=MSO_ANCHOR.MIDDLE)
-    txt(s, x + 1.4, iy + 0.34, iw - 1.6, 0.4, [[(head, {"size": 14, "bold": True, "color": NAVY})]])
-    txt(s, x + 0.28, iy + 1.12, iw - 0.5, 0.5, [[(body, {"size": 12, "color": INK})]], line_spacing=1.02)
-chips(s, 0.62, 6.35, ["statistical model", "matrix formulation", "interaction effects"])
+# bottom: why paired
+rect(s, 0.62, 4.85, 12.1, 1.5, CARD, rounded=True, radius=0.05, line=CARDLINE, line_w=1.0)
+txt(s, 0.92, 5.05, 11.5, 0.4, [[("Why paired?", {"size": 14, "bold": True, "color": NAVY})]])
+txt(s, 0.92, 5.45, 11.6, 0.8,
+    [[("Each prompt is answered by both models, so it is its own control — prompt difficulty, category mix and judge wording cancel out. ", {"size": 13, "color": INK}),
+      ("The next slide tests whether the +55.2 pp change is statistically real.", {"size": 13, "bold": True, "color": INK})]],
+    line_spacing=1.08)
 footer(s, "07")
 
 # =====================================================================
@@ -672,37 +666,9 @@ def appendix_header(s, kicker, title, owner):
     txt(s, 0.62, 0.82, 9.6, 1.0, [[(title, {"size": 27, "bold": True, "color": INK, "font": TITLE_FONT})]], line_spacing=0.98)
     speaker_pill(s, owner, sublabel="Q&A LEAD")
 
-# A1 — GLM design matrix detail
+# A1 — test decision table
 s = add_slide()
-appendix_header(s, "A1 · STATISTICAL MODEL", "Design matrix & interaction in full", "Carl Johan")
-txt(s, 0.62, 2.0, 7.2, 0.5,
-    [[("logit P(Yᵢ = 1) = β₀ + β₁·edited + Σ_c γ_c·catᵢ,c + Σ_c δ_c·(edited × catᵢ,c)", {"size": 16, "bold": True, "color": NAVY, "font": "Cambria"})]])
-bullets(s, 0.62, 2.7, 7.2, 3.5, [
-    [("Rows of X", {"bold": True, "color": NAVY}), (" = the 880 (prompt × condition) observations; columns = intercept, condition, 43 category dummies, and condition×category.", {})],
-    [("β₁", {"bold": True, "color": ORANGE_DK}), (" is the main A/B treatment effect; the McNemar test and Δ are the focused, assumption-light version of this term.", {})],
-    [("δ_c", {"bold": True, "color": ORANGE_DK}), (" are interaction effects: they let the edit's effect vary by harm category (exploratory — 10 prompts each).", {})],
-    [("Link choice", {"bold": True, "color": NAVY}), (": logistic for a principled binary model; a linear-probability version reproduces Δ directly as β₁.", {})],
-], size=13, gap=11, lh=1.05)
-# mini design-matrix sketch
-mx = 8.3
-rect(s, mx, 2.0, 4.4, 4.2, CARD, rounded=True, radius=0.05, line=CARDLINE, line_w=1.0)
-txt(s, mx + 0.3, 2.18, 3.8, 0.3, [[("X  (schematic)", {"size": 12.5, "bold": True, "color": NAVY})]])
-hdrs = ["1", "edit", "cat₂…", "edit×cat"]
-cw = 0.92
-for j, hd in enumerate(hdrs):
-    txt(s, mx + 0.35 + j * cw, 2.55, cw, 0.3, [[(hd, {"size": 10, "bold": True, "color": MUTED})]], align=PP_ALIGN.CENTER)
-mat = [["1", "0", "…", "0"], ["1", "1", "…", "1"], ["1", "0", "…", "0"], ["1", "1", "…", "1"]]
-for r, row in enumerate(mat):
-    ry = 2.9 + r * 0.62
-    for j, v in enumerate(row):
-        cell_c = ORANGE_DK if (j in (1, 3) and v == "1") else INK
-        txt(s, mx + 0.35 + j * cw, ry, cw, 0.4, [[(v, {"size": 13, "bold": (cell_c == ORANGE_DK), "color": cell_c, "font": "Cambria"})]], align=PP_ALIGN.CENTER)
-txt(s, mx + 0.3, 5.55, 3.9, 0.5, [[("Paired rows share their category dummies; only the condition columns flip.", {"size": 10.5, "italic": True, "color": MUTED})]], line_spacing=1.03)
-footer(s, "A1", tag="Appendix")
-
-# A2 — test decision table
-s = add_slide()
-appendix_header(s, "A2 · INFERENCE", "Which test, and why", "Carl Johan")
+appendix_header(s, "A1 · INFERENCE", "Which test, and why", "Carl Johan")
 tx, ty = 0.62, 2.0
 tw_tbl = 12.1
 colw = [4.0, 3.0, 2.4, 2.7]
@@ -717,7 +683,6 @@ rowsT = [
     ("How large, with uncertainty?", "Normal-approx CI on paired Δ", "Parametric", "large n; paired SE valid"),
     ("Robust to category clustering?", "Clustered bootstrap (20k)", "Resampling", "categories exchangeable"),
     ("Per-arm rate uncertainty?", "Wilson interval", "Parametric", "binomial proportion"),
-    ("Does effect vary by category?", "Logistic GLM w/ interaction", "Parametric (exploratory)", "model & link correct"),
 ]
 rh = 0.78
 for i, row in enumerate(rowsT):
@@ -728,11 +693,11 @@ for i, row in enumerate(rowsT):
     for (val, w, (sz, b, cc)) in zip(row, colw, styles):
         txt(s, cxp, ry, w - 0.25, rh, [[(val, {"size": sz, "bold": b, "color": cc})]], anchor=MSO_ANCHOR.MIDDLE, line_spacing=1.0)
         cxp += w
-footer(s, "A2", tag="Appendix")
+footer(s, "A1", tag="Appendix")
 
-# A3 — power derivation
+# A2 — power derivation
 s = add_slide()
-appendix_header(s, "A3 · SAMPLE SIZE", "Power & sample-size derivation", "Matthes")
+appendix_header(s, "A2 · SAMPLE SIZE", "Power & sample-size derivation", "Matthes")
 rect(s, 0.62, 2.05, 6.0, 3.4, CARD, rounded=True, radius=0.05, line=CARDLINE, line_w=1.0)
 txt(s, 0.92, 2.3, 5.4, 0.6,
     [[("n = ( σ · (z₁₋β + z₁₋α/2) / Δ )²", {"size": 18, "bold": True, "color": NAVY, "font": "Cambria"})]])
@@ -751,11 +716,11 @@ txt(s, 7.2, 2.8, 5.3, 2.4,
      [("Observed effect = 55.2 pp", {"size": 16, "bold": True, "color": WHITE})],
      [("— far above the planning threshold, so detection was never in doubt.", {"size": 13, "color": ICE})]],
     line_spacing=1.12, space_after=3)
-footer(s, "A3", tag="Appendix")
+footer(s, "A2", tag="Appendix")
 
-# A4 — category detail / fairness
+# A3 — category detail / fairness
 s = add_slide()
-appendix_header(s, "A4 · DISAGGREGATION", "Category-level change (subgroup view)", "Oliver")
+appendix_header(s, "A3 · DISAGGREGATION", "Category-level change (subgroup view)", "Oliver")
 add_image(s, os.path.join(FIG, "category_compliance_change.png"), 0.55, 2.05, w=8.0)
 txt(s, 0.62, 5.62, 8.0, 0.4, [[("Edited − baseline compliance by category. Many move 0→100%; others barely change.", {"size": 11, "italic": True, "color": MUTED})]])
 rect(s, 9.2, 2.05, 3.52, 4.2, CARD, rounded=True, radius=0.05, line=CARDLINE, line_w=1.0)
@@ -766,7 +731,7 @@ bullets(s, 9.45, 2.7, 3.05, 3.4, [
     "Uneven coverage across harm types = a fairness-of-coverage signal.",
     "Small per-category n (10) → exploratory, not a ranking.",
 ], size=11.5, gap=9, lh=1.04)
-footer(s, "A4", tag="Appendix")
+footer(s, "A3", tag="Appendix")
 
 # ---- presenter notes (brief) ----
 NOTES = {
@@ -776,7 +741,7 @@ NOTES = {
     3: "Matthes. Step 3 model+runtime: gemma-4-E4B-it, open-weight, RunPod RTX 5090, deterministic, independent samples.",
     4: "Matthes. Step 4 data: SORRY-Bench benchmark + 480 self-curated (12 areas x safe/unsafe), disjoint splits, power n=349 -> 88.2%.",
     5: "Matthes. Step 4c: the edit in one line; answers -> Bernoulli Y in {0,1}; paired (Y_base, Y_edit).",
-    6: "Carl Johan. Model: paired Delta; GLM/matrix lens with main effect beta1 and category interaction delta_c. Hits objectives 1-3.",
+    6: "Carl Johan. Effect size: signed change D per prompt (+1/0/-1); Delta = mean(D) = (247-4)/440 = +55.2pp. Paired design = each prompt is its own control.",
     7: "Carl Johan. Parametric (normal CI, Wilson) + exact/non-parametric (McNemar) + assumptions and how checked.",
     8: "Carl Johan. Result: 21.4->76.6%, +55.2pp, CI [50.4,60.0], McNemar p~9e-68.",
     9: "Oliver. Resampling: clustered bootstrap CI [47.3,63.0]; flips 247 vs 4; sensitivity 56.0pp.",
