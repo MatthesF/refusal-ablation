@@ -32,6 +32,21 @@ tests/
 
 
 # Generated binaries and heavyweight model files.
+*.ppt
+*.pptx
+*.pptm
+*.ppsx
+*.potx
+*.key
+*.doc
+*.docx
+*.pages
+*.xls
+*.xlsx
+*.numbers
+*.zip
+*.rar
+*.7z
 *.npz
 *.npy
 *.pt
